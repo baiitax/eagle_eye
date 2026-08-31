@@ -131,7 +131,11 @@ Both scripts run against a live server and exercise RBAC negative cases, duplica
 
 **APIs** — `/api/sentinel/status|nodes|apis|events|alerts|incidents|vulns|patches|config|db|evidence|irev|public|identity|sessions|network|secrets|logs|automation|action-catalog|actions|breakglass|playbooks|analytics|kpis|compliance|risk|executive|timeline|apps|audit|election-mode|threat-level|recovery|wall|copilot`.
 
-## 8. Public domain home & secure sign-in
+## 8. Vercel serverless deployment
+
+`api/index.js` (serverless entry) + `vercel.json` (rewrite-all to the function, `maxDuration: 30`, `includeFiles: public/**,data/**`) + `package.json` make the repo deployable on Vercel as-is (Framework Preset: **Other**). The same `handleRequest`/`boot` exports used locally serve every page, API and asset. Serverless notes: deterministic re-seed per cold start, warm instances keep state, HMAC-signed session tokens survive instance recycling, SSE auto-disabled (client checks `/api/health`), assets cached `public, max-age=3600`. For full realtime/persistence use the long-running server (`node server/server.js`). Verified by `scripts/serverless-check` (19 checks: pages, assets, cache headers, SSE 501, login, signed-token recycle, tamper rejection, idempotent boot).
+
+## 9. Public domain home & secure sign-in
 
 `/` — public election domain: live KPI strip, Result Observatory (senatorial districts + governorship monitored vote share, verified submissions only), incident monitor, IReV watch, Kano map, DEMO/unofficial disclaimers, SIGN IN (header) + bottom login dock, role-dashboard banner for signed-in users, authorized-portal grid.
 

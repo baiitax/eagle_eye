@@ -18,6 +18,7 @@ const sentinel = require('./lib/sentinel');
 const fmtWat = util.fmtWat;
 
 const PORT = process.env.PORT || 3000;
+const IS_SERVERLESS = !!process.env.VERCEL; // Vercel serverless mode (no timers, no SSE, stateless-ish)
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const { S, set, audit, notify, systemEvent, nextCode } = store;
 
@@ -260,7 +261,7 @@ function route(method, pattern, handler, opts = {}) {
 // --- public ---
 route('GET', /^\/api\/health$/, (req, res) => {
   const h = S().systemHealth;
-  sendJson(res, 200, { status: 'ok', time: Date.now(), simNow: S().meta.simNow, services: h });
+  sendJson(res, 200, { status: 'ok', time: Date.now(), simNow: S().meta.simNow, services: h, serverless: IS_SERVERLESS });
 });
 
 route('GET', /^\/api\/public\/statistics$/, (req, res) => {
@@ -3418,18 +3419,20 @@ function serveStatic(req, res, pathname) {
       return;
     }
     const ext = path.extname(full).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    const cacheControl = (IS_SERVERLESS && pathname.startsWith('/assets/')) ? 'public, max-age=3600, immutable' : 'no-store';
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cacheControl });
     res.end(buf);
   });
 }
 
-// ---------------- server ----------------
-const server = http.createServer(async (req, res) => {
+// ---------------- request handler (shared by long-running mode and Vercel serverless) ----------------
+async function handleRequest(req, res) {
   const url = new URL(req.url, 'http://x');
   const pathname = decodeURIComponent(url.pathname);
 
-  // SSE
+  // SSE — persistent connections do not exist in serverless deployments
   if (pathname === '/api/events' && req.method === 'GET') {
+    if (IS_SERVERLESS) { res.writeHead(501, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'SSE_DISABLED', message: 'Realtime stream is disabled in the serverless demo — all data is fetched on demand.' })); }
     const token = url.searchParams.get('token') || '';
     const user = token ? auth.currentUser({ headers: { authorization: `Bearer ${token}` } }) : null;
     if (!user) { res.writeHead(401); return res.end('unauthorized'); }
@@ -3463,34 +3466,45 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 404, { error: 'NOT_FOUND', message: `No route ${req.method} ${pathname}` });
   }
   serveStatic(req, res, pathname);
-});
-
-// ---------------- boot ----------------
-store.load();
-seedStatic();
-sim.buildPlan();
-if (!S().meta.simNow) {
-  sim.applyScenario('RESULTS', []);
-  console.log('[boot] fresh state → RESULTS scenario');
-} else {
-  // keep persisted position; rebuild pointers and resume live sim
-  sim.resume();
-  console.log('[boot] resumed persisted state at', util.fmtWat(S().meta.simNow), 'scenario', S().meta.scenario);
 }
-irev.buildPlan();
-irev.backfill(S().meta.simNow);
-console.log('[boot] IReV Watchtower ready:', irev.cfg().observations.length, 'observations,', irev.cfg().cases.length, 'cases');
-sentinel.ensureInitialized();
-const secBoot = sentinel.cfg();
-console.log('[boot] SENTINEL SOC ready:', secBoot.nodes.length, 'nodes,', secBoot.apis.length, 'APIs,', secBoot.incidents.filter(i => i.status !== 'CLOSED').length, 'open cases,', secBoot.vulns.filter(v => v.severity === 'CRITICAL' && v.status === 'OPEN').length, 'CRITICAL vulns, threat level', secBoot.threatLevel);
 
-const simTimer = setInterval(() => {
-  try { sim.tick(1000); irev.tick(S().meta.simNow); sentinel.tick(S().meta.simNow); } catch (e) { console.error('tick error', e); }
-}, 1000);
-process.on('SIGTERM', () => { clearInterval(simTimer); store.save(); process.exit(0); });
-process.on('SIGINT', () => { clearInterval(simTimer); store.save(); process.exit(0); });
+// ---------------- boot (shared by both modes — idempotent per process) ----------------
+let booted = false;
+function boot() {
+  if (booted) return;
+  booted = true;
+  store.load();
+  seedStatic();
+  sim.buildPlan();
+  if (!S().meta.simNow) {
+    sim.applyScenario('RESULTS', []);
+    console.log('[boot] fresh state → RESULTS scenario');
+  } else {
+    // keep persisted position; rebuild pointers and resume live sim
+    sim.resume();
+    console.log('[boot] resumed persisted state at', util.fmtWat(S().meta.simNow), 'scenario', S().meta.scenario);
+  }
+  irev.buildPlan();
+  irev.backfill(S().meta.simNow);
+  console.log('[boot] IReV Watchtower ready:', irev.cfg().observations.length, 'observations,', irev.cfg().cases.length, 'cases');
+  sentinel.ensureInitialized();
+  const secBoot = sentinel.cfg();
+  console.log('[boot] SENTINEL SOC ready:', secBoot.nodes.length, 'nodes,', secBoot.apis.length, 'APIs,', secBoot.incidents.filter(i => i.status !== 'CLOSED').length, 'open cases,', secBoot.vulns.filter(v => v.severity === 'CRITICAL' && v.status === 'OPEN').length, 'CRITICAL vulns, threat level', secBoot.threatLevel);
+}
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`NDC E-SITUATION ROOM 2027 — listening on 0.0.0.0:${PORT}`);
-  console.log(`Simulation: ${S().meta.scenario} @ ${util.fmtWat(S().meta.simNow)} (speed ${S().meta.simSpeed}x)`);
-});
+// ---------------- long-running mode (local / Render / Railway / Fly) ----------------
+if (require.main === module) {
+  boot();
+  const server = http.createServer(handleRequest);
+  const simTimer = setInterval(() => {
+    try { sim.tick(1000); irev.tick(S().meta.simNow); sentinel.tick(S().meta.simNow); } catch (e) { console.error('tick error', e); }
+  }, 1000);
+  process.on('SIGTERM', () => { clearInterval(simTimer); store.save(); process.exit(0); });
+  process.on('SIGINT', () => { clearInterval(simTimer); store.save(); process.exit(0); });
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`NDC E-SITUATION ROOM 2027 — listening on 0.0.0.0:${PORT}`);
+    console.log(`Simulation: ${S().meta.scenario} @ ${util.fmtWat(S().meta.simNow)} (speed ${S().meta.simSpeed}x)`);
+  });
+}
+
+module.exports = { handleRequest, boot };

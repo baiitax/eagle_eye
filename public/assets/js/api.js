@@ -60,8 +60,13 @@ const API = {
 };
 
 let sseSource = null; const sseHandlers = [];
-function sseConnect() {
+async function sseConnect() {
   if (!API.token) return;
+  // serverless deployments cannot hold persistent streams — detect and skip
+  try {
+    const h = await fetch('/api/health').then(r => r.json());
+    if (h && h.serverless) return;
+  } catch (e) { /* local or transient — attempt the stream anyway */ }
   if (sseSource) sseSource.close();
   sseSource = new EventSource(`/api/events?token=${encodeURIComponent(API.token)}`);
   sseSource.onmessage = (e) => {

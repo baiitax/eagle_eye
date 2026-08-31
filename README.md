@@ -15,6 +15,21 @@ node server/server.js        # → http://localhost:3000  (zero npm dependencies
 
 First boot seeds everything and loads the **Collation Phase (27 Feb 2027, 16:20 WAT)** scenario at 30× speed. Switch scenarios from the central header dropdown, **Admin → Simulation Control**, or `POST /api/admin/simulation {action:'reset'}` for a full reset.
 
+## Deploying to Vercel
+
+The repo is Vercel-ready: `api/index.js` is a serverless entry that boots the app per warm instance and serves every route (pages + APIs + static assets) with the exact same handler as the local server; `vercel.json` rewrites all paths to it and force-includes `public/**` + `data/**` in the function bundle.
+
+**Steps:** connect the GitHub repo in Vercel → Framework Preset: **Other** (no build command, no output directory) → Deploy. On redeploy after a push, everything just works.
+
+**Serverless behaviour (documented differences from local):**
+- Each **cold start** re-seeds the deterministic demo baseline (Collation Phase, 16:20 WAT). A **warm instance** keeps its in-memory state, so interactions persist while the instance lives.
+- Sign-in **survives instance recycling** — session tokens are HMAC-signed (userId + expiry), validated without the in-memory session store; tampered tokens are rejected.
+- The **realtime SSE stream is disabled** (the client detects it via `/api/health`); all data is fetched on demand.
+- `/assets/*` are served with `public, max-age=3600` so page loads don't re-invoke the function per file.
+- Runtime state writes are skipped gracefully (read-only filesystem) — the baseline re-seeds on the next cold start.
+
+For full realtime + persistent state (SSE, live sim ticking, durable actions), run the long-lived server on Render / Railway / Fly.io instead: `node server/server.js`.
+
 ## Pages
 
 | Portal | URL | Login |

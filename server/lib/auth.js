@@ -6,6 +6,27 @@ const { S, audit } = require('./store');
 
 const SESSION_TTL = 12 * 3600 * 1000;
 const CHALLENGE_TTL = 5 * 60 * 1000;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'ev2027-kn-demo-session-secret';
+
+// Signed session tokens: on serverless hosts the in-memory session store is lost
+// whenever an instance recycles, so every token carries an HMAC-signed
+// userId + expiry that survives cold starts (seed data is deterministic).
+function signToken(userId, expiresAt) {
+  const payload = `${userId}.${expiresAt}`;
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+function verifyToken(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) return null;
+  const [uid, exp, sig] = parts;
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(`${uid}.${exp}`).digest('base64url');
+  const a = Buffer.from(String(sig)); const b = Buffer.from(expect);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  const expiresAt = parseInt(exp, 10);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
+  return { userId: uid, expiresAt };
+}
 
 function clientIp(req) {
   return (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
@@ -28,9 +49,10 @@ function rateLimit(req, res, { windowMs = 60000, max = 240, key } = {}) {
 
 function issueSession(userId, req) {
   const st = S();
-  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + SESSION_TTL;
+  const token = signToken(userId, expiresAt);
   const session = {
-    token, userId, createdAt: Date.now(), expiresAt: Date.now() + SESSION_TTL,
+    token, userId, createdAt: Date.now(), expiresAt,
     ip: clientIp(req), device: (req.headers['user-agent'] || '').slice(0, 90),
   };
   st.sessions[token] = session;
@@ -44,9 +66,18 @@ function currentUser(req) {
   const h = req.headers['authorization'] || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
   if (!token) return null;
-  const s = st.sessions[token];
-  if (!s || s.expiresAt < Date.now()) return null;
-  const user = st.users.find(u => u.id === s.userId);
+  let s = st.sessions[token];
+  let userId = s ? s.userId : null;
+  if (!s || s.expiresAt < Date.now()) {
+    // serverless fallback: the session store may have been lost on an instance
+    // recycle — validate the signed token and rebuild the session record.
+    const parsed = verifyToken(token);
+    if (!parsed) return null;
+    userId = parsed.userId;
+    s = { token, userId, createdAt: Date.now(), expiresAt: parsed.expiresAt };
+    st.sessions[token] = s;
+  }
+  const user = st.users.find(u => u.id === userId);
   if (!user || user.status !== 'ACTIVE') return null;
   return { ...user, sessionToken: token };
 }
