@@ -159,7 +159,9 @@ function seedStatic() {
   // users
   for (const du of DEMO_USERS) {
     st.users.push({
-      id: uuid(), username: du.u, name: du.n, roleId: du.r, scope: du.scope,
+      // deterministic IDs: serverless hosts re-seed on every cold start; stable IDs
+      // keep HMAC-signed session tokens valid across instances (auth.js currentUser)
+      id: 'u-' + du.u, username: du.u, name: du.n, roleId: du.r, scope: du.scope,
       passwordHash: hashPassword(du.p), mfa: true, status: 'ACTIVE', phone: '0803' + ri(rng, 1000000, 9999999),
       createdAt: Date.now(),
     });

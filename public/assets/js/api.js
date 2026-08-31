@@ -85,7 +85,12 @@ async function apiBoot() {
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const [b, o] = await Promise.all([API.get('/api/bootstrap'), API.get('/api/overview')]);
+      // noRelogin: a mid-boot 401 must surface as the visible recovery screen
+      // (bootPortal), never as a silent bounce back to the home page
+      const [b, o] = await Promise.all([
+        API.get('/api/bootstrap', { noRelogin: true }),
+        API.get('/api/overview', { noRelogin: true }),
+      ]);
       return { b, o };
     } catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 900 * (attempt + 1))); }
   }
@@ -417,7 +422,17 @@ async function requireSession(portalName, roleHint, creds, opts) {
       const me = await API.get('/api/me', { noRelogin: true });
       API.setAuth(API.token, me.user, me.permissions);
       return me.user;
-    } catch (e) { API.clear(); }
+    } catch (e) {
+      // serverless hosts may lose per-instance session memory on a cold start;
+      // the server re-validates signed tokens statelessly — one clean retry
+      // before falling back to the sign-in screen
+      try {
+        await new Promise(r => setTimeout(r, 500));
+        const me2 = await API.get('/api/me', { noRelogin: true });
+        API.setAuth(API.token, me2.user, me2.permissions);
+        return me2.user;
+      } catch (e2) { API.clear(); }
+    }
   }
   return new Promise((resolve) => {
     showLogin({ portalName, roleHint, creds, opts, onSuccess: (me) => resolve(me.user) });

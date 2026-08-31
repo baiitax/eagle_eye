@@ -23,7 +23,7 @@ The repo is Vercel-ready: `api/index.js` is a serverless entry that boots the ap
 
 **Serverless behaviour (documented differences from local):**
 - Each **cold start** re-seeds the deterministic demo baseline (Collation Phase, 16:20 WAT). A **warm instance** keeps its in-memory state, so interactions persist while the instance lives.
-- Sign-in **survives instance recycling** — session tokens are HMAC-signed (userId + expiry), validated without the in-memory session store; tampered tokens are rejected.
+- Sign-in **survives instance recycling** — session tokens are HMAC-signed (userId + expiry), validated without the in-memory session store; tampered tokens are rejected. User IDs are **deterministic across cold starts** and **MFA challenges are self-contained signed payloads**, so a sign-in (or the post-login navigation to `/admin` etc.) that lands on a different instance still authenticates — no redirects back to the home page.
 - The **realtime SSE stream is disabled** (the client detects it via `/api/health`); all data is fetched on demand.
 - `/assets/*` are served with `public, max-age=3600` so page loads don't re-invoke the function per file.
 - Runtime state writes are skipped gracefully (read-only filesystem) — the baseline re-seeds on the next cold start.

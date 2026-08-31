@@ -93,10 +93,32 @@ async function login(u, p) {
   const actionReq = j(await req('POST', '/api/sentinel/actions/request', { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secDirector.token }, { action: 'ISOLATE_NODE', target: 'NODE-0011', detail: 'serverless test' }));
   ok('action request flow works', actionReq && actionReq.action && actionReq.action.status === 'REQUESTED' && actionReq.action.approval === 'SINGLE');
 
+  // ---- simulate a FULL cold start: wipe all state and re-seed (new instance) ----
+  console.log('== COLD START (full wipe + re-seed, new instance) ==');
+  const stBefore = store.S();
+  const tokenBefore = m.token;
+  const challengeTest = await (async () => {
+    // issue a challenge on "this instance", then wipe memory BEFORE verifying it
+    const l2 = j(await req('POST', '/api/auth/login', { 'Content-Type': 'application/json' }, { username: 'superadmin', password: 'Admin@123!' }));
+    return l2;
+  })();
+  store.reset();               // fresh state object — in-memory sessions/challenges all gone
+  const { seedStatic } = require(path.join(ROOT, 'server/lib/seed.js'));
+  seedStatic();                // re-seed like a brand-new instance
+  const meCold = j(await req('GET', '/api/me', { Authorization: 'Bearer ' + tokenBefore }));
+  ok('token issued pre-wipe still authenticates after cold start (deterministic user ids)', meCold && meCold.user && meCold.user.username === 'socanalyst', meCold ? JSON.stringify(meCold).slice(0, 100) : 'null');
+  const stCold = j(await req('GET', '/api/sentinel/status', { Authorization: 'Bearer ' + tokenBefore }));
+  ok('privileged API works after cold start', stCold && stCold.top.systemSecurity === 'PROTECTED');
+  const mfaCold = j(await req('POST', '/api/auth/mfa', { 'Content-Type': 'application/json' }, { challenge: challengeTest.challenge, code: challengeTest.mfaCode }));
+  ok('MFA challenge issued pre-wipe verifies after cold start (signed challenge)', mfaCold && mfaCold.token && mfaCold.user.username === 'superadmin', mfaCold ? JSON.stringify({ err: mfaCold.error, u: mfaCold.user && mfaCold.user.username }).slice(0, 120) : 'null');
+  const adminMe = j(await req('GET', '/api/me', { Authorization: 'Bearer ' + (mfaCold && mfaCold.token) }));
+  ok('superadmin /api/me after cold-start MFA', adminMe && adminMe.user && adminMe.user.roleId === 'superadmin' && adminMe.permissions.includes('admin.users'));
+
   // boot is idempotent (call boot again — must not double-seed)
   const before = store.S().users.length;
   boot();
   ok('boot() idempotent (no double-seed)', store.S().users.length === before, before + ' vs ' + store.S().users.length);
+  ok('40 users re-seeded deterministically', before === 40, 'users=' + before);
 
   server.close();
   console.log('\nRESULT: ' + pass + ' passed, ' + fail + ' failed');
