@@ -39,8 +39,18 @@ const API = {
       if (ctrl && ctrl.signal.aborted) throw new Error('The server took too long to respond. Please try again.');
       throw e;
     } finally { if (timer) clearTimeout(timer); }
-    if (r.status === 401 && !opts.noRelogin) {
-      // token expired — bounce to login
+    if (r.status === 401 && !opts.noRelogin && !opts._retried) {
+      // A single 401 must never bounce the user home: serverless instances may
+      // recycle mid-session, and stale cached clients exist. Revalidate the
+      // signed token against /api/me once and retry the original request;
+      // only a FAILED revalidation clears the session.
+      try {
+        const me = await API.get('/api/me', { noRelogin: true, _retried: true });
+        if (me && me.user) {
+          API.setAuth(API.token, me.user, me.permissions);
+          return this.req(method, path, body, { ...opts, _retried: true });
+        }
+      } catch (e) { /* fall through — genuinely unauthenticated */ }
       API.clear();
       if (!location.pathname.includes('index')) location.href = '/';
       throw new Error('UNAUTHENTICATED');
@@ -88,8 +98,8 @@ async function apiBoot() {
       // noRelogin: a mid-boot 401 must surface as the visible recovery screen
       // (bootPortal), never as a silent bounce back to the home page
       const [b, o] = await Promise.all([
-        API.get('/api/bootstrap', { noRelogin: true }),
-        API.get('/api/overview', { noRelogin: true }),
+        API.get('/api/bootstrap', { noRelogin: true, timeout: 12000 }),
+        API.get('/api/overview', { noRelogin: true, timeout: 12000 }),
       ]);
       return { b, o };
     } catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 900 * (attempt + 1))); }
@@ -339,12 +349,13 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
       const bootstatus = document.getElementById('bootstatus');
       // status progression so the wait is always explained
       setTimeout(() => { if (bootstatus && document.body.contains(bootstatus)) bootstatus.textContent = 'Session established — loading command data…'; }, 450);
-      // watchdog: if the portal has not taken over within 20s, show a recoverable failure screen
+      // watchdog: if the portal has not taken over within 30s, show a recoverable failure screen
+      // (30s: serverless cold starts can legitimately take several seconds per request)
       setTimeout(() => {
         if (!window.__portalBooted && !document.querySelector('.app') && !document.querySelector('.agent-host') && !document.querySelector('.mc-head')) {
           showBootFailure('The dashboard did not respond after authentication. Your session is safe — please retry.');
         }
-      }, 20000);
+      }, 30000);
       setTimeout(() => {
         try {
           if (bootstatus && document.body.contains(bootstatus)) bootstatus.textContent = 'Data received — rendering your dashboard…';

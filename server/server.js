@@ -3419,7 +3419,7 @@ function serveStatic(req, res, pathname) {
       return;
     }
     const ext = path.extname(full).toLowerCase();
-    const cacheControl = (IS_SERVERLESS && pathname.startsWith('/assets/')) ? 'public, max-age=3600, immutable' : 'no-store';
+    const cacheControl = (IS_SERVERLESS && pathname.startsWith('/assets/')) ? 'public, max-age=300' : 'no-store';
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cacheControl });
     res.end(buf);
   });

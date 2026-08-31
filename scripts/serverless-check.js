@@ -10,6 +10,7 @@ require(path.join(ROOT, 'api/index.js')); // loads the vercel handler module
 const { handleRequest, boot } = require(path.join(ROOT, 'server/server.js'));
 const store = require(path.join(ROOT, 'server/lib/store'));
 
+function canvasMock(){const g={addColorStop(){}};return{fillRect(){},strokeRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fill(){},arc(){},fillText(){},closePath(){},save(){},restore(){},scale(){},translate(){},rotate(){},clearRect(){},drawImage(){},rect(){},setLineDash(){},createLinearGradient:()=>g,createRadialGradient:()=>g,createPattern:()=>g,measureText:()=>({width:10}),set fillStyle(v){},set strokeStyle(v){},set lineWidth(v){},set font(v){},set textAlign(v){},set globalAlpha(v){}};}
 const PORT = 3100;
 let pass = 0, fail = 0;
 const ok = (n, c, x = '') => { if (c) { pass++; console.log('  ✓ ' + n); } else { fail++; console.log('  ✗ FAIL ' + n + (x ? ' — ' + x : '')); } };
@@ -50,7 +51,7 @@ async function login(u, p) {
 
   const css = await req('GET', '/assets/css/theme.css');
   ok('static asset served', css.status === 200 && css.text.includes('SENTINEL SOC'));
-  ok('assets cached on serverless (public, max-age)', /public, max-age=3600/.test(css.headers['cache-control'] || ''), css.headers['cache-control']);
+  ok('assets cached on serverless (public, max-age=300, NO immutable — stale-bundle safe)', /public, max-age=300/.test(css.headers['cache-control'] || '') && !/immutable/.test(css.headers['cache-control'] || ''), css.headers['cache-control']);
   const apiJs = await req('GET', '/assets/js/api.js');
   ok('JS asset served', apiJs.status === 200 && apiJs.text.includes('safeStore'));
 
@@ -113,6 +114,57 @@ async function login(u, p) {
   ok('MFA challenge issued pre-wipe verifies after cold start (signed challenge)', mfaCold && mfaCold.token && mfaCold.user.username === 'superadmin', mfaCold ? JSON.stringify({ err: mfaCold.error, u: mfaCold.user && mfaCold.user.username }).slice(0, 120) : 'null');
   const adminMe = j(await req('GET', '/api/me', { Authorization: 'Bearer ' + (mfaCold && mfaCold.token) }));
   ok('superadmin /api/me after cold-start MFA', adminMe && adminMe.user && adminMe.user.roleId === 'superadmin' && adminMe.permissions.includes('admin.users'));
+
+  // ---- FULL BROWSER FLOW across a cold start: /admin page after login (jsdom) ----
+  console.log('== BROWSER FLOW: login → cold start → /admin dashboard ==');
+  let jsdomMod = null;
+  try { jsdomMod = require('/tmp/uitest/node_modules/jsdom'); } catch (e) { /* optional */ }
+  if (jsdomMod) {
+    const { JSDOM, VirtualConsole } = jsdomMod;
+    // 1) log in as superadmin through the serverless handler (like the /login page does)
+    const adminLogin = await login('superadmin', 'Admin@123!');
+    ok('browser-flow: superadmin login OK', !!adminLogin.token);
+    // 2) simulate the user's next page load landing on a FRESH instance:
+    store.reset(); seedStatic();
+    // 3) load /admin in a DOM with the token in localStorage — the browser state after redirect
+    const errs = [];
+    const vc2 = new VirtualConsole();
+    vc2.on('jsdomError', e => errs.push(String(e.message).split('\n')[0]));
+    vc2.on('error', (...a) => errs.push(String(a[0]).slice(0, 140)));
+    const adminHtml = await req('GET', '/admin');
+    const dom = new JSDOM(adminHtml.text, {
+      url: 'http://127.0.0.1:' + PORT + '/admin', runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, virtualConsole: vc2,
+      beforeParse(w) {
+        w.localStorage.setItem('ndc_token', adminLogin.token);
+        w.localStorage.setItem('ndc_user', JSON.stringify(adminLogin.user));
+        w.localStorage.setItem('ndc_perms', JSON.stringify([]));
+      },
+    });
+    const w = dom.window;
+    w.fetch = (i, o) => fetch('http://127.0.0.1:' + PORT + String(i).replace(/^https?:\/\/[^/]+/, ''), o);
+    w.EventSource = class { constructor(u) { } close() { } };
+    w.HTMLCanvasElement.prototype.getContext = function () { return canvasMock(); };
+    w.HTMLCanvasElement.prototype.toDataURL = function () { return 'data:image/png;base64,AAAA'; };
+    await new Promise(r => setTimeout(r, 4500));
+    const bodyT = w.document.body.textContent.replace(/\s+/g, ' ');
+    ok('browser-flow: admin dashboard renders after cold start (no login card)', !!w.document.querySelector('.app') && !w.document.querySelector('.login-wrap'), bodyT.slice(0, 120));
+    ok('browser-flow: no redirect home (location stays /admin)', w.location.pathname === '/admin', w.location.href);
+    ok('browser-flow: dashboard KPIs rendered', bodyT.includes('SUPER ADMINISTRATION') || bodyT.includes('Users') || bodyT.includes('ADMINISTRATION'));
+    // 4) another cold start AFTER render: subsequent privileged API calls must keep working
+    store.reset(); seedStatic();
+    const usersTab = w.document.querySelector('#sidebar .nav-item[data-nav="users"]');
+    if (usersTab) {
+      usersTab.click();
+      await new Promise(r => setTimeout(r, 1200));
+      const t2 = w.document.body.textContent.replace(/\s+/g, ' ');
+      ok('browser-flow: Users tab loads after 2nd cold start (stateless token)', t2.includes('username') || t2.includes('Username') || w.document.querySelectorAll('#main .tbl tbody tr').length >= 1, 'rows=' + w.document.querySelectorAll('#main .tbl tbody tr').length);
+    } else {
+      ok('browser-flow: Users tab loads after 2nd cold start (stateless token)', false, 'users nav missing');
+    }
+    ok('browser-flow: no runtime errors', errs.length === 0, errs.join(' | ').slice(0, 240));
+  } else {
+    console.log('   (jsdom not installed — browser-flow scenario skipped)');
+  }
 
   // boot is idempotent (call boot again — must not double-seed)
   const before = store.S().users.length;
