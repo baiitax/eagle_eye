@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secure Sign-In — EYES OF VICTORY</title>
+<link rel="stylesheet" href="/assets/css/theme.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/media/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/media/favicon-16.png">
+<link rel="shortcut icon" href="/assets/media/favicon.ico">
+<link rel="apple-touch-icon" href="/assets/media/apple-touch-icon.png">
+<style>
+body { background: radial-gradient(1000px 560px at 50% -10%, #14233f, #060a13); min-height: 100vh; }
+.login-page-shell { max-width: 1180px; margin: 0 auto; padding: 26px 20px 40px; display: grid; grid-template-columns: 1fr 430px; gap: 30px; align-items: start; }
+.lp-left { color: #cfe3f5; }
+.lp-left .brand-row { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+.lp-left .brand-row b { color: #fff; font-size: 16px; letter-spacing: 1px; }
+.lp-left .brand-row small { display: block; font-size: 9px; letter-spacing: 2.5px; color: #8ba0bd; }
+.lp-left h1 { color: #fff; font-size: 26px; line-height: 1.2; margin: 0 0 10px; }
+.lp-left h1 em { color: var(--cyan); font-style: normal; }
+.lp-left p { font-size: 13px; color: #8ba0bd; line-height: 1.7; margin: 0 0 20px; max-width: 540px; }
+.lp-groups { display: flex; flex-direction: column; gap: 16px; }
+.lp-group h4 { color: #7dd3fc; font-size: 10.5px; letter-spacing: 1.5px; margin: 0 0 8px; text-transform: uppercase; }
+.lp-group .demo-chips { margin-top: 0; }
+.lp-foot { margin-top: 28px; font-size: 11px; color: #64748b; line-height: 1.7; }
+@media (max-width: 900px) { .login-page-shell { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="login-page-shell">
+  <div class="lp-left">
+    <div class="brand-row">
+      <img src="/assets/media/logo.png" alt="EYES OF VICTORY" style="height:44px;width:auto;object-fit:contain" onerror="this.style.display='none'">
+      <div><b>EYES OF VICTORY</b><small>KANO STATE 2027 · SECURE ACCESS</small></div>
+    </div>
+    <h1>Secure sign-in to the <em>command ecosystem</em></h1>
+    <p>Every portal — field agent app, LG &amp; senatorial situation rooms, central command, verification, administration and the SENTINEL security operations centre — is protected by MFA. In this demonstration environment the one-time code is displayed on the verification screen.</p>
+    <div class="lp-groups">
+      <div class="lp-group">
+        <h4>Field &amp; Verification</h4>
+        <div class="demo-chips">
+          <span class="chip" data-fill="fieldagent">Field Agent · <b>fieldagent</b></span>
+          <span class="chip" data-fill="supervisor">Supervisory Agent · <b>supervisor</b></span>
+          <span class="chip" data-fill="reviewer">Result Reviewer · <b>reviewer</b></span>
+          <span class="chip" data-fill="wardcoord">Ward Coordinator · <b>wardcoord</b></span>
+        </div>
+      </div>
+      <div class="lp-group">
+        <h4>Situation Rooms</h4>
+        <div class="demo-chips">
+          <span class="chip" data-fill="lgcoord">LG Coordinator · <b>lgcoord</b></span>
+          <span class="chip" data-fill="lgsupervisor">LG Supervisor · <b>lgsupervisor</b></span>
+          <span class="chip" data-fill="sencoord_n">Senatorial Coordinator · <b>sencoord_n</b></span>
+          <span class="chip" data-fill="sendirector">Senatorial Director · <b>sendirector</b></span>
+        </div>
+      </div>
+      <div class="lp-group">
+        <h4>Central Command</h4>
+        <div class="demo-chips">
+          <span class="chip" data-fill="director">Situation Room Director · <b>director</b></span>
+          <span class="chip" data-fill="chiefanalyst">Chief Analyst · <b>chiefanalyst</b></span>
+          <span class="chip" data-fill="resultmanager">Result Manager · <b>resultmanager</b></span>
+          <span class="chip" data-fill="irevanalyst">IReV Analyst · <b>irevanalyst</b></span>
+          <span class="chip" data-fill="incidentcommander">Incident Commander · <b>incidentcommander</b></span>
+          <span class="chip" data-fill="pio">Public Information Officer · <b>pio</b></span>
+          <span class="chip" data-fill="auditor">Auditor · <b>auditor</b></span>
+        </div>
+      </div>
+      <div class="lp-group">
+        <h4>SENTINEL Security Operations Centre</h4>
+        <div class="demo-chips">
+          <span class="chip" data-fill="secdirector">Security Director · <b>secdirector</b></span>
+          <span class="chip" data-fill="socanalyst">SOC Analyst · <b>socanalyst</b></span>
+          <span class="chip" data-fill="infraengineer">Infrastructure Engineer · <b>infraengineer</b></span>
+          <span class="chip" data-fill="apisecurity">API Security Engineer · <b>apisecurity</b></span>
+          <span class="chip" data-fill="secinccmd">Incident Commander · <b>secinccmd</b></span>
+        </div>
+      </div>
+      <div class="lp-group">
+        <h4>Administration &amp; Observation</h4>
+        <div class="demo-chips">
+          <span class="chip" data-fill="superadmin">Super Administrator · <b>superadmin</b></span>
+          <span class="chip" data-fill="observer">Read-Only Observer · <b>observer</b></span>
+          <span class="chip" data-fill="support">Technical Support · <b>support</b></span>
+        </div>
+      </div>
+    </div>
+    <div class="lp-foot">
+      ← <a href="/">Public election monitoring home</a> &nbsp;·&nbsp; <a href="/public">Full public portal</a><br>
+      © 2026–2027 NDC Election Operations · Unofficial monitoring platform · Not affiliated with INEC · All data is fictional demonstration data.
+    </div>
+  </div>
+  <div id="loginmount"></div>
+</div>
+
+<script src="/assets/js/util.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/ui.js"></script>
+<script>
+// dedicated secure sign-in page — clickable demo credentials fill the form instantly
+const DEMO = {
+  fieldagent: { u: 'fieldagent', p: 'Agent@123!' }, supervisor: { u: 'supervisor', p: 'Supervisor@123!' },
+  reviewer: { u: 'reviewer', p: 'Reviewer@123!' }, wardcoord: { u: 'wardcoord', p: 'WardCoord@123!' },
+  lgcoord: { u: 'lgcoord', p: 'LGCoord@123!' }, lgsupervisor: { u: 'lgsupervisor', p: 'LGSuper@123!' },
+  sencoord_n: { u: 'sencoord_n', p: 'SenCoord@123!' }, sendirector: { u: 'sendirector', p: 'SenDir@123!' },
+  director: { u: 'director', p: 'Director@123!' }, chiefanalyst: { u: 'chiefanalyst', p: 'Chief@123!' },
+  resultmanager: { u: 'resultmanager', p: 'ResMgr@123!' }, irevanalyst: { u: 'irevanalyst', p: 'IrevAna@123!' },
+  incidentcommander: { u: 'incidentcommander', p: 'IncCmd@123!' }, pio: { u: 'pio', p: 'PIO@123!' },
+  auditor: { u: 'auditor', p: 'Auditor@123!' },
+  secdirector: { u: 'secdirector', p: 'SecDir@123!' }, socanalyst: { u: 'socanalyst', p: 'SocAna@123!' },
+  infraengineer: { u: 'infraengineer', p: 'InfraEng@123!' }, apisecurity: { u: 'apisecurity', p: 'ApiSec@123!' },
+  secinccmd: { u: 'secinccmd', p: 'SecCmd@123!' },
+  superadmin: { u: 'superadmin', p: 'Admin@123!' }, observer: { u: 'observer', p: 'Observer@123!' },
+  support: { u: 'support', p: 'Support@123!' },
+};
+const creds = { username: 'socanalyst', password: 'SocAna@123!', demoUsers: Object.values(DEMO).map(d => ({ u: d.u, p: d.p })) };
+const mount = document.getElementById('loginmount');
+showLogin({
+  portalName: 'EYES OF VICTORY · Command Ecosystem',
+  roleHint: 'any role',
+  creds,
+  opts: { mount: '#loginmount' },
+  onSuccess: (me) => {
+    // authenticated — route to the role dashboard (rolePortal map in api.js)
+    const dest = rolePortal(me.user.roleId);
+    if (dest && dest !== '/login') location.href = dest;
+  },
+});
+// chips in the left panel fill the sign-in card inputs directly
+document.querySelectorAll('.lp-group .chip[data-fill]').forEach(ch => ch.onclick = () => {
+  const d = DEMO[ch.dataset.fill];
+  if (!d) return;
+  const lu = document.getElementById('lu');
+  const lp = document.getElementById('lp');
+  if (lu && lp) { lu.value = d.u; lp.value = d.p; lp.focus(); }
+  else { toast('Sign-in form loading', 'Try again in a moment.'); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EYES OF VICTORY — Kano State 2027 · Public Election Monitoring Domain</title>
+<link rel="stylesheet" href="/assets/css/theme.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/media/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/media/favicon-16.png">
+<link rel="shortcut icon" href="/assets/media/favicon.ico">
+<link rel="apple-touch-icon" href="/assets/media/apple-touch-icon.png">
+</head>
+<body>
+<style>
+.pubhome .lcard { background: rgba(255,255,255,.05); border: 1px solid rgba(148,183,235,.14); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s, transform .15s; display: block; color: inherit; text-decoration: none; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.pubhome .lcard:hover { border-color: var(--cyan); transform: translateY(-2px); }
+.pubhome .lcard .pi { font-size: 20px; }
+.pubhome .lcard h3 { color: #fff; font-size: 12.5px; margin: 7px 0 3px; letter-spacing: .3px; }
+.pubhome .lcard p { color: #8ba0bd; font-size: 10.5px; line-height: 1.55; margin: 0; }
+.pubhome .lcard .creds { margin-top: 7px; font-size: 9.5px; color: #64748b; font-family: var(--mono); }
+.pubhome .lcard .creds b { color: var(--cyan); }
+.pubhome .ph-sec { max-width: 1180px; margin: 26px auto 0; padding: 0 20px; }
+.pubhome .ph-sec-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pubhome .ph-sec-h h2 { color: #fff; font-size: 15px; letter-spacing: .5px; margin: 0; }
+.pubhome .ph-sec-h .ln { flex: 1; height: 1px; background: rgba(148,183,235,.15); }
+.pubhome .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 10px rgba(34,197,94,.8); animation: evpblink 1.6s infinite; display: inline-block; }
+@keyframes evpblink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+.pubhome .ir-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #cfe3f5; padding: 6px 0; border-bottom: 1px solid rgba(148,183,235,.08); }
+.pubhome .ir-row:last-child { border-bottom: 0; }
+.pubhome .inc-chip { display: inline-block; border: 1px solid #6b4a10; background: #2b1c07; color: #fde68a; border-radius: 14px; padding: 3px 10px; font-size: 10px; margin: 0 5px 5px 0; }
+.pubhome .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pubhome .btn.primary { background: linear-gradient(180deg,#38bdf8,#0284c7); border-color: #38bdf8; color: #06121f; }
+.pubhome .btn.ghosty { border: 1px solid rgba(148,183,235,.3); color: #cfe3f5; background: transparent; }
+.pubhome .btn { display: inline-block; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; letter-spacing: .3px; }
+</style>
+<!-- EYES OF VICTORY preloader -->
+<style>
+#ev-preloader{position:fixed;inset:0;z-index:99999;background:radial-gradient(760px 480px at 50% 32%,#0d2440,#060a13);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .45s ease;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+#ev-preloader.done{opacity:0;pointer-events:none}
+.evp-radar{position:relative;width:150px;height:150px;margin-bottom:6px}
+.evp-radar .r{position:absolute;border:1px solid rgba(56,189,248,.4);border-radius:50%;animation:evpring 2.4s ease-out infinite}
+.evp-radar .r1{inset:0}.evp-radar .r2{inset:24px;animation-delay:.5s}.evp-radar .r3{inset:48px;animation-delay:1s}
+.evp-radar .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(22,163,74,.5),transparent 70deg,transparent 360deg);animation:evpspin 3.2s linear infinite}
+.evp-radar .core{position:absolute;inset:46px;border-radius:50%;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px #7dd3fc,0 0 30px rgba(56,189,248,.45)}
+.evp-radar .core img{width:76%;height:76%;object-fit:contain}
+@keyframes evpring{0%{transform:scale(.55);opacity:.95}100%{transform:scale(1.2);opacity:0}}
+@keyframes evpspin{to{transform:rotate(360deg)}}
+.evp-brand{color:#fff;font-size:19px;font-weight:800;letter-spacing:2.5px}
+.evp-brand small{display:block;text-align:center;font-size:9px;letter-spacing:3.5px;color:#8ba0bd;margin-top:4px;text-transform:uppercase}
+.evp-status{display:flex;flex-direction:column;gap:5px;font-size:10.5px;color:#8ba0bd;min-width:240px;margin-top:6px}
+.evp-status .srow{display:flex;align-items:center;gap:8px;opacity:0;animation:evpsrow .45s forwards}
+.evp-status .srow .d{width:7px;height:7px;border-radius:50%;background:#f59e0b;animation:evpblink 1s infinite;flex:none}
+.evp-status .srow.ok .d{background:#22c55e;animation:none}
+.evp-status .srow span{letter-spacing:.6px}
+@keyframes evpsrow{to{opacity:1}}
+@keyframes evpblink{0%,100%{opacity:1}50%{opacity:.2}}
+.evp-bar{width:230px;height:3px;background:#13223c;border-radius:3px;overflow:hidden;margin-top:8px}
+.evp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#16a34a,#38bdf8);animation:evpfill 6.5s ease forwards;border-radius:3px}
+@keyframes evpfill{0%{width:0}60%{width:64%}90%{width:88%}100%{width:100%}}
+.evp-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:1.6px;color:#40536f;text-transform:uppercase}
+</style>
+<div id="ev-preloader">
+  <div class="evp-radar">
+    <div class="r r1"></div><div class="r r2"></div><div class="r r3"></div>
+    <div class="sweep"></div>
+    <div class="core"><img src="/assets/media/logo.png" alt="EYES OF VICTORY"></div>
+  </div>
+  <div class="evp-brand">EYES OF VICTORY<small>PUBLIC ELECTION MONITORING DOMAIN</small></div>
+  <div class="evp-status">
+    <div class="srow" style="animation-delay:.2s"><span class="d"></span><span>SYNCHRONIZING PUBLIC MONITORING DATA</span></div>
+    <div class="srow" style="animation-delay:1.1s"><span class="d"></span><span>VERIFYING SOURCE INTEGRITY</span></div>
+    <div class="srow" style="animation-delay:2s"><span class="d"></span><span>PREPARING RESULT OBSERVATORY</span></div>
+  </div>
+  <div class="evp-bar"><i></i></div>
+  <div class="evp-foot">SEE THE EVIDENCE · FOLLOW THE PROCESS · UNDERSTAND THE ELECTION</div>
+</div>
+<script>
+(function(){
+  var el=document.getElementById('ev-preloader');
+  window.__evHidePreloader=function(){ if(!el) return; el.classList.add('done'); setTimeout(function(){ el&&el.remove(); },500); };
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[0])rs[0].classList.add('ok');},1500);
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[1])rs[1].classList.add('ok');},2400);
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[2])rs[2].classList.add('ok');},3300);
+  setTimeout(function(){ if(el && !el.classList.contains('done')) window.__evHidePreloader(); },8000);
+  new MutationObserver(function(){
+    if(document.querySelector('.pubhome,.login-wrap,.app,.land,.doc')) window.__evHidePreloader();
+  }).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+
+<div class="pubhome" id="pubhome">
+  <!-- header -->
+  <div class="ph-head">
+    <div class="ph-brand">
+      <img src="/assets/media/logo.png" alt="EYES OF VICTORY" style="height:40px;width:auto;object-fit:contain" onerror="this.style.display='none'">
+      <div>EYES OF VICTORY<small>KANO STATE 2027 · PUBLIC MONITORING DOMAIN</small></div>
+    </div>
+    <span class="ph-spacer"></span>
+    <div class="btns">
+      <a class="btn ghosty" href="/public">FULL PUBLIC PORTAL →</a>
+      <a class="btn primary" href="/login">🔐 SIGN IN</a>
+    </div>
+  </div>
+
+  <!-- hero -->
+  <div class="ph-hero">
+    <div class="ph-tag">See the Evidence. Follow the Process. Understand the Election.</div>
+    <h1>THE ELECTION, <em>AS IT HAPPENS.</em></h1>
+    <div class="ph-sub">Independent, citizen-verifiable election monitoring for the 2027 Kano State Governorship &amp; Legislative elections — live polling-unit reporting progress, result verification, incident monitoring and public IReV observation tracking, all traceable to records.</div>
+    <span class="ph-notice">⚠ DEMO ENVIRONMENT — SIMULATED DATA — NOT OFFICIAL ELECTION RESULTS</span>
+  </div>
+
+  <!-- live KPI strip -->
+  <div class="ph-strip">
+    <div class="ph-tiles" id="kpis">
+      <div class="ph-tile"><div class="v">—</div><div class="l">PUs REPORTING</div></div>
+      <div class="ph-tile"><div class="v">—</div><div class="l">VERIFIED</div></div>
+      <div class="ph-tile"><div class="v">—</div><div class="l">OPEN INCIDENTS</div></div>
+      <div class="ph-tile"><div class="v">—</div><div class="l">ACTIVE SOS</div></div>
+      <div class="ph-tile"><div class="v">—</div><div class="l">IReV COVERAGE</div></div>
+      <div class="ph-tile"><div class="v">—</div><div class="l">UPDATES PUBLISHED</div></div>
+    </div>
+  </div>
+
+  <div class="ph-body">
+    <div class="ph-grid2">
+      <!-- result observatory -->
+      <div class="ph-card">
+        <h3><span class="live-dot"></span> RESULT OBSERVATORY — SENATORIAL DISTRICTS</h3>
+        <div id="senresults"><div class="dim" style="font-size:12px">Loading public monitoring data…</div></div>
+        <div style="margin-top:12px;border-top:1px solid rgba(148,183,235,.12);padding-top:10px">
+          <h3>GOVERNORSHIP — MONITORED VOTE SHARE <span style="color:#64748b;font-size:9px;font-weight:400">(verified polling-unit submissions only)</span></h3>
+          <div id="govresults"><div class="dim" style="font-size:12px">Loading…</div></div>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#64748b;line-height:1.6">UNOFFICIAL MONITORING DATA — independent observation only. These are <b>not</b> INEC official results; figures change as more polling units are verified. Raw records: <a href="/public">public portal</a> · <a href="/api/public/results" target="_blank">open data API</a>.</div>
+      </div>
+      <div>
+        <!-- incidents -->
+        <div class="ph-card" style="margin-bottom:14px">
+          <h3>⚠ INCIDENT MONITOR <span style="color:#64748b;font-size:9px;font-weight:400">(ward/LGA level — no personal information)</span></h3>
+          <div id="incmon"><div class="dim" style="font-size:12px">Loading…</div></div>
+        </div>
+        <!-- IReV watch -->
+        <div class="ph-card">
+          <h3>👁 IReV WATCH <span style="color:#64748b;font-size:9px;font-weight:400">(public observation status only)</span></h3>
+          <div id="irevwatch"><div class="dim" style="font-size:12px">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kano map + transparency -->
+    <div class="ph-sec">
+      <div class="ph-sec-h"><h2>KANO STATE — LIVE MONITORING GEOGRAPHY</h2><span class="ln"></span><span style="color:#64748b;font-size:10px">LGA level · aggregated only</span></div>
+      <div class="ph-grid3">
+        <div class="ph-card" style="grid-column:span 2">
+          <svg id="heromap" viewBox="0 0 480 430" style="width:100%;height:auto;max-height:340px"></svg>
+        </div>
+        <div class="ph-card">
+          <h3>HOW THIS WORKS</h3>
+          <div class="ir-row"><b>1.</b> Field agents photograph polling-unit result sheets (EC8A) with tamper-evident hashing.</div>
+          <div class="ir-row"><b>2.</b> Two-person verification reviews documents against IReV observations.</div>
+          <div class="ir-row"><b>3.</b> Verified figures are published here with source, status and timestamp.</div>
+          <div class="ir-row"><b>4.</b> Every published number traces back to a polling-unit record.</div>
+          <div class="ir-row"><b>5.</b> Discrepancies are reported factually: <i>"RESULT PREVIOUSLY OBSERVED — CURRENTLY NOT OBSERVED"</i> — never speculation.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- authorized command portals -->
+    <div class="ph-sec">
+      <div class="ph-sec-h"><h2>AUTHORIZED ACCESS — COMMAND PORTALS</h2><span class="ln"></span><span style="color:#64748b;font-size:10px">requires MFA-secured sign-in</span></div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px" id="pgrid"></div>
+      <div id="rolebanner" style="display:none;margin-top:14px;background:rgba(255,255,255,.08);border:1px solid rgba(148,183,235,.2);border-radius:10px;padding:12px 16px;align-items:center;gap:12px">
+        <span style="font-size:12px;color:#cfe3f5">You are signed in as <b style="color:#fff" id="rolebanner-name">—</b>. Your role dashboard is one click away.</span>
+        <span style="flex:1"></span>
+        <a class="btn primary" id="rolebanner-btn" href="/central">OPEN MY ROLE DASHBOARD →</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    EYES OF VICTORY — independent election-monitoring platform · Unofficial monitoring · Not affiliated with INEC ·
+    <b>DEMO DATA — NOT OFFICIAL ELECTION RESULTS</b> · All published figures are traceable to polling-unit monitoring records.<br>
+    © 2026–2027 NDC Election Operations · Responsible election technology: no voter profiling, no persuasion, no targeting.
+  </div>
+</div>
+
+<!-- bottom login dock -->
+<div class="login-dock">
+  <span class="ld-txt">Authorized personnel — field agents, situation rooms &amp; security team</span>
+  <a class="btn primary" href="/login" style="padding:7px 18px">🔐 SIGN IN</a>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const PORTALS = [
+  { href: '/agent', icon: '📱', name: 'Field Agent App', desc: 'Duty activation, EC8A capture with SHA-256 evidence, offline sync, SOS.', creds: 'fieldagent' },
+  { href: '/lg', icon: '🏢', name: 'LG Situation Room', desc: 'Ward command, results matrix, review queue, escalations.', creds: 'lgcoord' },
+  { href: '/senatorial', icon: '⬡', name: 'Senatorial Command', desc: 'District command centre, evidence centre, SOS command.', creds: 'sencoord_n' },
+  { href: '/central', icon: '🛰', name: 'Central Situation Room', desc: 'National ops & intelligence command, IReV Watchtower.', creds: 'director' },
+  { href: '/sentinel', icon: '🛡', name: 'SENTINEL SOC', desc: 'Security operations centre: nodes, APIs, identity, evidence, incidents.', creds: 'socanalyst' },
+  { href: '/supervisor', icon: '🔍', name: 'Verification Portal', desc: 'Two-person EC8A review, disputes, chain of custody.', creds: 'supervisor' },
+  { href: '/admin', icon: '⚙️', name: 'Super Administration', desc: 'Users, roles, devices, elections, simulation control.', creds: 'superadmin' },
+  { href: '/public', icon: '🌐', name: 'Full Public Portal', desc: 'Complete public observatory: map, results, IReV WATCH, corrections centre.', creds: 'open access' },
+  { href: '/docs/README.html', icon: '📚', name: 'Documentation', desc: 'Architecture, security model, data pipeline, schema.', creds: 'no login' },
+];
+$('#pgrid').innerHTML = PORTALS.map(p => `
+  <a class="lcard" href="${p.href}">
+    <div class="pi">${p.icon}</div>
+    <h3>${p.name}</h3>
+    <p>${p.desc}</p>
+    <div class="creds">demo: <b>${p.creds}</b></div>
+  </a>`).join('');
+
+// ---- live public domain data ----
+const fmtN = (n) => Number(n || 0).toLocaleString('en-NG');
+async function loadPublic() {
+  try {
+    const stats = await fetch('/api/public/statistics').then(r => r.json());
+    const k = stats.kpis || {};
+    const tiles = [
+      [fmtN(k.reported) + ' <span style="font-size:11px;color:#64748b">/ ' + fmtN(k.totalPu) + '</span>', k.reportingPct + '% reporting', 'blue'],
+      [fmtN(k.verified), k.verifiedPct + '% verified', 'green'],
+      [fmtN(k.incidents), 'monitored incidents', 'amber'],
+      [fmtN(k.activeSos), 'active SOS signals', ''],
+      [stats.irev ? fmtN(stats.irev.observed) : '—', stats.irev ? stats.irev.coveragePct + '% IReV coverage' : '—', 'blue'],
+      [fmtN(stats.releases), 'published updates', ''],
+    ];
+    $('#kpis').innerHTML = tiles.map(t => `<div class="ph-tile"><div class="v ${t[2]}">${t[0]}</div><div class="l">${t[1].split(' ').slice(1).join(' ') || t[1]}</div></div>`).join('');
+    // senatorial districts
+    $('#senresults').innerHTML = (stats.senatorial || []).map(sd => `
+      <div class="dist-row">
+        <span class="nm">${sd.name}</span>
+        <span class="mn"><i style="width:${sd.reportedPct}%;background:#38bdf8"></i></span>
+        <span class="vv">${fmtN(sd.reported)}/${fmtN(sd.totalPu)} PUs</span>
+        <span style="font-size:10px;color:#4ade80;min-width:70px;text-align:right;font-family:var(--mono)">✓ ${sd.verifiedPct}%</span>
+      </div>`).join('');
+    // governorship monitored vote share (verified submissions only)
+    const res = await fetch('/api/public/results').then(r => r.json());
+    if (res.results && res.results.length) {
+      const tot = {};
+      let grand = 0;
+      for (const lga of res.results) for (const c of (lga.candidates || [])) { tot[c.id] = tot[c.id] || { ...c, votes: 0 }; tot[c.id].votes += c.votes; grand += c.votes; }
+      const rows = Object.values(tot).sort((a, b) => b.votes - a.votes);
+      $('#govresults').innerHTML = rows.map(c => `
+        <div class="dist-row">
+          <span class="nm">${c.name}</span>
+          <span class="mn"><i style="width:${grand ? Math.round(c.votes / grand * 100) : 0}%;background:${c.color}"></i></span>
+          <span class="vv">${fmtN(c.votes)}</span>
+          <span style="font-size:10px;color:#8ba0bd;min-width:44px;text-align:right;font-family:var(--mono)">${grand ? (c.votes / grand * 100).toFixed(1) : 0}%</span>
+        </div>`).join('');
+    } else $('#govresults').innerHTML = '<div class="dim" style="font-size:12px">No verified submissions yet.</div>';
+    // incidents
+    const inc = await fetch('/api/public/incidents').then(r => r.json());
+    const topInc = (inc.incidents || []).sort((a, b) => b.count - a.count).slice(0, 4);
+    $('#incmon').innerHTML = topInc.length ? topInc.map(c => `<span class="inc-chip">${c.category} — ${c.count}</span>`).join('') : '<div class="dim" style="font-size:12px">No monitored incidents</div>';
+    // irev
+    if (stats.irev) {
+      const ir = stats.irev;
+      $('#irevwatch').innerHTML = `
+        <div class="ir-row">Source status: <b style="color:#4ade80">${ir.status}</b></div>
+        <div class="ir-row">Observed: <b>${fmtN(ir.observed)}</b> · Matched: <b>${fmtN(ir.matched)}</b> (${ir.reconciliationPct}%)</div>
+        <div class="ir-row">Pending uploads: <b>${fmtN(ir.pending)}</b> · Under human review: <b>${ir.casesUnderReview}</b></div>
+        <div style="font-size:10px;color:#64748b;margin-top:6px;line-height:1.6">${ir.note}</div>`;
+    }
+    // map
+    const g = await fetch('/api/public/geo').then(r => r.json());
+    const svg = $('#heromap');
+    if (svg && g.lgas) {
+      svg.innerHTML = '';
+      for (const l of g.lgas) {
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        p.setAttribute('points', l.poly.map(q => q.join(',')).join(' '));
+        p.setAttribute('fill', l.senatorial === 'Kano Central' ? '#0e4a6e' : l.senatorial === 'Kano North' ? '#123a5e' : '#0d2c4d');
+        p.setAttribute('stroke', '#1d3a5f'); p.setAttribute('stroke-width', '0.4');
+        svg.appendChild(p);
+      }
+      const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      pulse.setAttribute('cx', '240'); pulse.setAttribute('cy', '215'); pulse.setAttribute('r', '3');
+      pulse.setAttribute('fill', '#4ade80');
+      svg.appendChild(pulse);
+    }
+  } catch (e) { /* public data optional — page remains usable */ }
+}
+loadPublic();
+setInterval(loadPublic, 30000);
+</script>
+<script>
+// If an authenticated session exists, offer the user's role dashboard (never auto-redirect away)
+(async () => {
+  try {
+    let tok = null;
+    try { tok = localStorage.getItem('ndc_token'); } catch (e) { tok = null; }
+    if (!tok) return;
+    const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + tok } });
+    if (!r.ok) return;
+    const me = await r.json();
+    if (!me.user) return;
+    const roleMap = { superadmin:'/admin', agent:'/agent', lgcoord:'/lg', lgsupervisor:'/lg', lganalyst:'/lg', lgtech:'/lg', wardcoord:'/lg', sencoord:'/senatorial', sendirector:'/senatorial', senops:'/senatorial', senanalyst:'/senatorial', senincident:'/senatorial', senverify:'/senatorial', senviewer:'/senatorial', supervisor:'/supervisor', reviewer:'/supervisor', secdirector:'/sentinel', socanalyst:'/sentinel', infraengineer:'/sentinel', apisecurity:'/sentinel', secinccmd:'/sentinel' };
+    const dest = roleMap[me.user.roleId] || '/central';
+    const banner = document.getElementById('rolebanner');
+    if (banner) {
+      banner.style.display = 'flex';
+      document.getElementById('rolebanner-name').textContent = me.user.name + ' (' + me.user.roleName + ')';
+      document.getElementById('rolebanner-btn').href = dest;
+    }
+  } catch (e) { /* landing stays static */ }
+})();
+</script>
+</body>
+</html>

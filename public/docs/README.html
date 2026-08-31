@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — EYES OF VICTORY 2027</title>
+<link rel="stylesheet" href="/assets/css/theme.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/media/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/media/favicon-16.png">
+<link rel="shortcut icon" href="/assets/media/favicon.ico">
+<link rel="apple-touch-icon" href="/assets/media/apple-touch-icon.png">
+<style>
+  .doc { max-width: 900px; margin: 0 auto; padding: 34px 20px 60px; line-height: 1.75; }
+  .doc h1 { color: #fff; font-size: 26px; letter-spacing: -.4px; }
+  .doc h2 { color: #fff; font-size: 17px; margin: 30px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .doc h3 { color: #cfe3f5; font-size: 14px; margin: 18px 0 6px; }
+  .doc p, .doc li { color: var(--muted); font-size: 13.5px; }
+  .doc code { font-family: var(--mono); font-size: 12px; color: #7dd3fc; background: #0c1626; border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
+  .doc table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12.5px; }
+  .doc th { text-align: left; color: #fff; background: var(--bg2); padding: 7px 10px; border: 1px solid var(--line); }
+  .doc td { color: var(--muted); padding: 6px 10px; border: 1px solid var(--line); }
+  .doc .callout { border: 1px solid #6b4a10; background: #2b1c07; color: #fde68a; border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 12.5px; }
+  .doc a { color: var(--cyan); }
+  .doc ul { padding-left: 22px; }
+</style>
+</head>
+<body>
+<!-- EYES OF VICTORY preloader -->
+<style>
+#ev-preloader{position:fixed;inset:0;z-index:99999;background:radial-gradient(760px 480px at 50% 32%,#0d2440,#060a13);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .45s ease;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+#ev-preloader.done{opacity:0;pointer-events:none}
+.evp-radar{position:relative;width:150px;height:150px;margin-bottom:6px}
+.evp-radar .r{position:absolute;border:1px solid rgba(56,189,248,.4);border-radius:50%;animation:evpring 2.4s ease-out infinite}
+.evp-radar .r1{inset:0}.evp-radar .r2{inset:24px;animation-delay:.5s}.evp-radar .r3{inset:48px;animation-delay:1s}
+.evp-radar .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(22,163,74,.5),transparent 70deg,transparent 360deg);animation:evpspin 3.2s linear infinite}
+.evp-radar .core{position:absolute;inset:46px;border-radius:50%;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 0 0 2px #7dd3fc,0 0 30px rgba(56,189,248,.45)}
+.evp-radar .core img{width:76%;height:76%;object-fit:contain}
+@keyframes evpring{0%{transform:scale(.55);opacity:.95}100%{transform:scale(1.2);opacity:0}}
+@keyframes evpspin{to{transform:rotate(360deg)}}
+.evp-brand{color:#fff;font-size:19px;font-weight:800;letter-spacing:2.5px}
+.evp-brand small{display:block;text-align:center;font-size:9px;letter-spacing:3.5px;color:#8ba0bd;margin-top:4px;text-transform:uppercase}
+.evp-status{display:flex;flex-direction:column;gap:5px;font-size:10.5px;color:#8ba0bd;min-width:230px;margin-top:6px}
+.evp-status .srow{display:flex;align-items:center;gap:8px;opacity:0;animation:evpsrow .45s forwards}
+.evp-status .srow .d{width:7px;height:7px;border-radius:50%;background:#f59e0b;animation:evpblink 1s infinite;flex:none}
+.evp-status .srow.ok .d{background:#22c55e;animation:none}
+.evp-status .srow span{letter-spacing:.6px}
+@keyframes evpsrow{to{opacity:1}}
+@keyframes evpblink{0%,100%{opacity:1}50%{opacity:.2}}
+.evp-bar{width:230px;height:3px;background:#13223c;border-radius:3px;overflow:hidden;margin-top:8px}
+.evp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#16a34a,#38bdf8);animation:evpfill 6.5s ease forwards;border-radius:3px}
+@keyframes evpfill{0%{width:0}60%{width:64%}90%{width:88%}100%{width:100%}}
+.evp-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:9px;letter-spacing:1.6px;color:#40536f;text-transform:uppercase}
+</style>
+<div id="ev-preloader">
+  <div class="evp-radar">
+    <div class="r r1"></div><div class="r r2"></div><div class="r r3"></div>
+    <div class="sweep"></div>
+    <div class="core"><img src="/assets/media/logo.png" alt="EYES OF VICTORY"></div>
+  </div>
+  <div class="evp-brand">EYES OF VICTORY<small>SYSTEM DOCUMENTATION</small></div>
+  <div class="evp-status">
+    <div class="srow" style="animation-delay:.2s"><span class="d"></span><span>ESTABLISHING SECURE CONNECTION</span></div>
+    <div class="srow" style="animation-delay:1.1s"><span class="d"></span><span>SYNCHRONIZING LOCATION</span></div>
+    <div class="srow" style="animation-delay:2s"><span class="d"></span><span>VERIFYING DATA INTEGRITY</span></div>
+  </div>
+  <div class="evp-bar"><i></i></div>
+  <div class="evp-foot">MONITOR · VERIFY · RESPOND · REPORT — KANO 2027</div>
+</div>
+<script>
+(function(){
+  var el=document.getElementById('ev-preloader');
+  window.__evHidePreloader=function(){ if(!el) return; el.classList.add('done'); setTimeout(function(){ el&&el.remove(); },500); };
+  // mark status rows complete progressively
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[0])rs[0].classList.add('ok');},1500);
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[1])rs[1].classList.add('ok');},2400);
+  setTimeout(function(){var rs=document.querySelectorAll('#ev-preloader .srow');if(rs[2])rs[2].classList.add('ok');},3300);
+  // failsafe — never block the app
+  setTimeout(function(){ if(el && !el.classList.contains('done')) window.__evHidePreloader(); },8000);
+  // auto-hide as soon as the app shell paints
+  new MutationObserver(function(){
+    if(document.querySelector('.app,.login-wrap,.agent-host,.pub-header,.land,.doc')) window.__evHidePreloader();
+  }).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+<div class="demo-banner">⚠ DEMO MODE — simulated data · not official INEC results · <a href="/">← back to platform</a></div>
+<div class="doc">
+  <h1>EYES OF VICTORY 2027 — Documentation</h1>
+  <p><b>Monitor. Verify. Respond. Report.</b> — Kano State election monitoring &amp; command centre prototype.</p>
+
+  <div class="callout">Everything runs with zero npm dependencies: a plain Node.js server plus a hand-built frontend (SVG GIS engine, SVG chart library, no CDNs). The server seeds 44 real Kano LGA boundaries (geoBoundaries), 504 wards, 1,476 polling units and 1,319 field agents, then runs a full simulated election day at 30× real time.</div>
+
+  <h2>Quick start</h2>
+  <p><code>node server/server.js</code> → <code>http://localhost:3000</code>. First boot loads the Collation Phase scenario (27 Feb 2027, 16:20 WAT). Switch scenarios from the central header or <code>/admin → Simulation Control</code>.</p>
+
+  <h2>Demo accounts</h2>
+  <table>
+    <tr><th>Portal</th><th>URL</th><th>Login</th></tr>
+    <tr><td>Central Situation Room</td><td><code>/central</code></td><td><code>director / Director@123!</code></td></tr>
+    <tr><td>Supervisory Verification</td><td><code>/supervisor</code></td><td><code>supervisor / Supervisor@123!</code> (dual: <code>supervisor2</code>)</td></tr>
+    <tr><td>LG Supervisor Portal (Nasarawa)</td><td><code>/lg</code></td><td><code>lgcoord / LGCoord@123!</code> · Supervisor <code>lgsupervisor / LGSuper@123!</code> · <code>lganalyst / LGAnalyst@123!</code> · <code>lgtech / LGTech@123!</code></td></tr>
+    <tr><td>Senatorial Command (Kano North)</td><td><code>/senatorial</code></td><td><code>sencoord_n / SenCoord@123!</code> · Director <code>sendirector / SenDir@123!</code> · <code>senops / senanalyst / senincident / senverify / senviewer</code></td></tr>
+    <tr><td>Field Agent App</td><td><code>/agent</code></td><td><code>fieldagent / Agent@123!</code></td></tr>
+    <tr><td>Super Administration</td><td><code>/admin</code></td><td><code>superadmin / Admin@123!</code></td></tr>
+    <tr><td>Public Statistics Portal</td><td><code>/public</code></td><td>open access</td></tr>
+    <tr><td>Analyst / Operator / Auditor / Observer / PIO / NOC / Incident</td><td><code>/central</code></td><td><code>analyst · operator · auditor · observer · pio · support · incident</code> / <code>…@123!</code></td></tr>
+  </table>
+  <p>The MFA code is displayed on screen (demo mode). All 15 roles exist with granular permissions.</p>
+
+  <h2>System applications</h2>
+  <ul>
+    <li><b>Field Agent</b> — duty lifecycle, EC8A simulated capture with SHA-256 evidence, OCR cross-check (human confirmation required), offline queue, SOS, live video, read-only post-duty archive.</li>
+    <li><b>LG Situation Room</b> — scope-bound dashboard, GIS, ward intelligence &amp; Ward Health Score (operational completeness only), incidents, SOS, SITREPs.</li>
+    <li><b>Senatorial Command</b> — Central/North/South dashboards, district map, live wall.</li>
+    <li><b>Central Situation Room</b> — KPIs, command map, feeds, live wall, Intelligence Assistant with provenance labels, analytics, verification oversight, audit centre.</li>
+    <li><b>Supervisory Verification</b> — split-screen EC8A review, OCR confidence, dual-control (two-person) verification, disputes, chain of custody.</li>
+    <li><b>Public Portal</b> — verified-only aggregates, "UNOFFICIAL / MONITORING DATA" labels, methodology and correction policy.</li>
+    <li><b>Administration</b> — users, roles/permissions, agent assignment, devices, elections, geography, configuration, security, simulation control.</li>
+  </ul>
+
+  <h2>IReV WATCHTOWER (reconciliation)</h2>
+  <p>Open the Central Situation Room → <b>IReV WATCHTOWER</b> section: dashboard (connection status, coverage &amp; reconciliation percentages, activity stream, alerts), Pending Uploads (timers + thresholds, neutral causes), Upload Monitor (LGA coverage matrix), Snapshot Archive (immutable observations with hashes), Change Detection (EV-DIFF case files + version timelines), Reconciliation (three-way matrix → PU evidence record → case file with review workflow), Source Health (outage protection), Reconciliation Report (SITREP) and What Changed? (15-minute operational delta). The module never penetrates protected INEC infrastructure; it observes only the public surface, and every difference is phrased as "POTENTIAL DOCUMENT CHANGE — HUMAN REVIEW REQUIRED".</p>
+
+  <h2>Central Situation Room 2.0</h2>
+  <p>The Central Command adds: master system status + operating modes, operational health score, six-view GIS intelligence map, live operations feed, What Changed? centre, result flow & bottleneck detection, Discrepancy Command (two-person approval on CRITICAL cases), video priority filters, rotating command-wall panels, agent lifecycle, tasks, communications with acknowledgement tracking, shift management & handover reports, version-controlled reports (SITREP-2027-XXXXXX-V{n}), source reliability dashboard, Mobile Command (<code>/mobile</code>) and five new roles (<code>chiefanalyst / Chief@123!</code>, <code>resultmanager / ResMgr@123!</code>, <code>irevanalyst / IrevAna@123!</code>, <code>incidentcommander / IncCmd@123!</code>, <code>comms / Comms@123!</code>).</p>
+
+  <h2>Public Election Observatory 2.0</h2>
+  <p>The public domain (<code>/public</code>, open access) is a mobile-first national observatory: live status cards with source/status/last-updated, public GIS with LGA→ward→PU monitoring profiles, Result Observatory, public IReV WATCH, What Changed timeline, incident monitor at ward/LGA resolution, Kano Observatory, statistics, published reports, Transparency Centre (methodology, sources, verification, <b>corrections centre</b>, privacy), Media Data Desk with open-data exports and a documented public API (<code>/api/public/*</code>). The public-data principle is absolute: OFFICIAL ELECTION RESULTS vs MONITORING DATA vs IReV OBSERVATIONS vs VERIFIED MONITORING RECORDS are always distinguished, and no "winner" is ever declared from monitoring data.</p>
+
+  <h2>Result lifecycle</h2>
+  <p><code>UNVERIFIED → SUBMITTED → UNDER REVIEW → VERIFIED / REJECTED / DISPUTED → ARCHIVED</code> with validation flags (neutral language), anti-duplication (ID, PU, SHA-256, perceptual hash, metadata), versioned corrections (VERSION 1 → VERSION 2 → …), four-eyes approvals and full audit trails.</p>
+
+  <h2>Architecture notes</h2>
+  <ul>
+    <li><b>Real-time</b> — Server-Sent Events broadcast result/incident/SOS/stream/agent events; dashboards update live.</li>
+    <li><b>Time</b> — stored UTC, displayed Africa/Lagos (WAT).</li>
+    <li><b>Evidence</b> — immutable originals; SHA-256, custody chain, GPS/device/timestamp metadata.</li>
+    <li><b>Security</b> — MFA, server-side RBAC on every endpoint, rate limiting, lockout, scrypt password hashing, export audit logging.</li>
+    <li><b>Scale-out</b> — configurable Country → State → Senatorial → LGA → Ward → PU hierarchy; Kano is deployment #1. Production target: <code>docs/schema.sql</code> (PostgreSQL + PostGIS).</li>
+  </ul>
+
+  <h2>Testing</h2>
+  <p><code>node scripts/apitest.js</code> and <code>node scripts/e2e.js</code> exercise the full pipeline: agent → validation → LG/senatorial/central → supervisor verify → public portal, including RBAC negatives, duplicate protection, SOS escalation, incident lifecycle, duty lock-out and evidence preservation.</p>
+
+  <h2>Responsible election technology</h2>
+  <p>No voter profiling or persuasion. Monitoring data is never presented as official INEC results. The intelligence engine separates RAW / VERIFIED / DERIVED / ANALYTICAL / HUMAN data categories. Every record preserves <b>SOURCE + TIME + LOCATION + USER + EVIDENCE + STATUS + AUDIT TRAIL</b>. The operational chain is <b>COLLECT → VALIDATE → VERIFY → ANALYZE → ESCALATE → REPORT → ARCHIVE</b> — never collect → assume → publish.</p>
+
+  <h2>SENTINEL SOC & public domain (v7)</h2>
+  <p><b>SENTINEL SECURITY OPERATIONS CENTRE</b> (<code>/sentinel</code>) — defensive monitoring & authorized response: 14 nodes, 12 APIs, identity/sessions, vulnerabilities & patches, configuration drift, file integrity, database, evidence store (§71 failsafe), IReV connector security, public domain + WAF, threat intelligence & correlation, 9-step security cases, 11 playbooks, action centre with 25-action catalog (LOW→CRITICAL risk; SINGLE or <b>DUAL authorization</b>; execute records BEFORE/AFTER; automated rollback), break-glass emergency access, immutable security audit, MTTD/MTTA/MTTC/MTTR KPIs, compliance, risk register, election-day defence mode, command wall and SENTINEL Copilot (proposes actions — never executes from chat). Roles: <code>secdirector</code>, <code>socanalyst</code>, <code>infraengineer</code>, <code>apisecurity</code>, <code>secinccmd</code>.</p>
+  <p><b>Public domain home</b> (<code>/</code>) — live KPIs, Result Observatory, incident monitor, IReV watch, SIGN IN + bottom login dock. <b>Secure sign-in</b> (<code>/login</code>) — MFA card with clickable demo credentials for every role. Tests: <code>scripts/sentinel-test.js</code> (155 checks), all prior suites green; verified in headless Chrome.</p>
+
+  <p style="margin-top:26px;color:var(--dim);font-size:11.5px">NDC Election Operations · Unofficial monitoring platform · Not affiliated with INEC · © 2026–2027</p>
+</div>
+</body>
+</html>

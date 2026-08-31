@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EYES OF VICTORY — MOBILE COMMAND</title>
+<link rel="stylesheet" href="/assets/css/theme.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/media/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/media/favicon-16.png">
+<link rel="shortcut icon" href="/assets/media/favicon.ico">
+<link rel="apple-touch-icon" href="/assets/media/apple-touch-icon.png">
+<style>
+  .mc-head { background: linear-gradient(180deg,#0d1626,#0a101d); border-bottom: 1px solid var(--line); padding: 12px 14px; position: sticky; top: 0; z-index: 50; }
+  .mc-body { max-width: 560px; margin: 0 auto; padding: 12px 14px 40px; }
+  .mc-big { background: var(--bg1); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .mc-big.alert { border-color: #7f1d1d; background: #1c0d10; }
+  .mc-big .v { font-size: 30px; font-weight: 800; font-family: var(--mono); }
+  .mc-big .l { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+  .mc-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .mc-row .mc-big { flex: 1; margin-bottom: 0; }
+  .mc-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mc-strip .chip { background: var(--bg2); border: 1px solid var(--line2); border-radius: 6px; padding: 5px 9px; font-size: 10px; }
+</style>
+</head>
+<body>
+<script src="/assets/js/util.js"></script>
+<script src="/assets/js/api.js"></script>
+<script>
+(async () => {
+  const me = await requireSession('Mobile Command', 'Director', { username: 'director', password: 'Director@123!' });
+  if (!['director', 'chiefanalyst', 'resultmanager', 'irevanalyst', 'incidentcommander', 'comms', 'analyst', 'operator', 'superadmin'].includes(me.roleId)) {
+    document.body.innerHTML = '<div class="login-wrap"><div class="login-card"><h2>ACCESS RESTRICTED</h2><p class="small muted">Mobile Command is limited to senior authorized roles.</p></div></div>';
+    return;
+  }
+  const $ = (s) => document.querySelector(s);
+  const esc = window.esc, fmtN = window.fmtN, fmtWatShort = window.fmtWatShort, watClock = window.watClock;
+  document.body.innerHTML = `
+  <div class="mc-head">
+    <div class="flex" style="justify-content:space-between">
+      <span class="flex" style="gap:8px"><img src="/assets/media/logo.png" style="height:20px;object-fit:contain" onerror="this.style.display='none'">
+      <span style="font-size:9px;letter-spacing:1.4px;color:var(--muted)"><b style="color:#fff">EYES OF VICTORY</b><br>MOBILE COMMAND · ${esc(me.name.split(' ')[0])}</span></span>
+      <span class="mono small" id="clk">--:--:--</span>
+    </div>
+  </div>
+  <div class="mc-body" id="body"><span class="dim small">Connecting…</span></div>`;
+  let ov = null, dash = null;
+  async function refresh() {
+    try {
+      ov = await API.get('/api/overview');
+      dash = await API.get('/api/irev/dashboard');
+      render();
+    } catch (e) { $('#body').innerHTML = `<div class="empty">DEGRADED MODE — last synchronized data shown. ${esc(e.message)}</div>`; }
+  }
+  function render() {
+    const k = ov.kpis, ir = dash.kpis;
+    const sos = ov.sos.length ? `<div class="mc-big alert"><div class="l">ACTIVE SOS</div><div class="v" style="color:#fca5a5">${ov.sos.length}</div>${ov.sos.slice(0,2).map(s=>`<div class="small muted">${esc(s.code)} — ${esc(s.puId)} · ${esc(s.status)}</div>`).join('')}</div>` : `<div class="mc-big"><div class="l">ACTIVE SOS</div><div class="v" style="color:#4ade80">0</div></div>`;
+    $('#body').innerHTML = `
+      ${sos}
+      <div class="mc-row">
+        <div class="mc-big ${k.criticalIncidents ? 'alert' : ''}"><div class="l">CRITICAL INCIDENTS</div><div class="v" style="color:${k.criticalIncidents ? '#fca5a5' : '#4ade80'}">${fmtN(k.criticalIncidents)}</div><div class="small muted">${fmtN(k.activeIncidents)} active total</div></div>
+        <div class="mc-big ${ir.docChanges ? 'alert' : ''}"><div class="l">IReV DOC CHANGES</div><div class="v" style="color:${ir.docChanges ? '#fca5a5' : '#4ade80'}">${fmtN(ir.docChanges)}</div><div class="small muted">${fmtN(ir.discrepancies)} discrepancies</div></div>
+      </div>
+      <div class="mc-row">
+        <div class="mc-big ${ir.underReview ? 'alert' : ''}"><div class="l">CASES IN REVIEW</div><div class="v" style="color:${ir.underReview ? '#fbbf24' : '#4ade80'}">${fmtN(ir.underReview)}</div></div>
+        <div class="mc-big ${k.pending ? 'alert' : ''}"><div class="l">RESULT BACKLOG</div><div class="v" style="color:${k.pending ? '#fbbf24' : '#4ade80'}">${fmtN(k.pending)}</div></div>
+      </div>
+      <div class="mc-row">
+        <div class="mc-big"><div class="l">REPORTING</div><div class="v" style="color:#38bdf8">${k.reportingPct}%</div><div class="small muted">${fmtN(k.submittedPu)}/${fmtN(k.totalPu)} PUs</div></div>
+        <div class="mc-big"><div class="l">IReV OBSERVED</div><div class="v" style="color:#38bdf8">${ir.coveragePct}%</div><div class="small muted">${fmtN(ir.matched)} matched</div></div>
+      </div>
+      <div class="mc-big">
+        <div class="l">SYSTEM HEALTH</div>
+        <div class="mc-strip mt8" id="syschips"></div>
+      </div>
+      <div class="mc-big">
+        <div class="l">CRITICAL ALERTS</div>
+        <div class="mt8">${dash.alerts.length ? dash.alerts.slice(0, 6).map(a=>`<div class="small mb12" style="border-bottom:1px solid #122036;padding-bottom:8px">${a.severity==='CRITICAL'?'🚨':'⚠️'} <b style="color:#fff">${esc(a.title)}</b><br><span class="muted">${esc(a.note.slice(0,110))}</span></div>`).join('') : '<span class="dim small">None</span>'}</div>
+      </div>
+      <div class="center small dim">SIMPLIFIED VIEW — full command at /central · DEMO ENVIRONMENT — NOT OFFICIAL ELECTION RESULTS</div>`;
+    API.get('/api/central/health').then(h => {
+      $('#syschips').innerHTML = h.sources.map(s=>`<span class="chip">${s.status==='HEALTHY'?'●':'▲'} ${esc(s.name)}: <b style="color:${s.status==='HEALTHY'?'#4ade80':s.status==='DEGRADED'?'#fbbf24':'#f87171'}">${s.status}</b></span>`).join('');
+    }).catch(()=>{});
+  }
+  setInterval(() => { $('#clk').textContent = watClock(ov ? ov.sim.now : Date.now()); }, 1000);
+  setInterval(refresh, 20000);
+  await refresh();
+})();
+</script>
+</body>
+</html>
