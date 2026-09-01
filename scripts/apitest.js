@@ -40,7 +40,9 @@ async function login(username, password) {
   console.log('reject with reason →', withReason.status, withReason.json.status);
 
   // dual control: flag for second review, then confirm with different reviewer
-  const p3 = await req('GET', '/api/results?election=e-gov-2027&status=SUBMITTED&anomaly=1&limit=1', null, sup.token);
+  // (any SUBMITTED row qualifies — do not depend on anomaly rows existing this early in the sim)
+  const p3 = await req('GET', '/api/results?election=e-gov-2027&status=SUBMITTED&limit=1', null, sup.token);
+  if (!p3.json.rows || !p3.json.rows.length) throw new Error('no SUBMITTED rows for dual-control flow (sim not advanced?)');
   const sid3 = p3.json.rows[0].id;
   const flag = await req('POST', `/api/results/${sid3}/verify`, { action: 'FLAG_SECOND_REVIEW', reason: 'Anomaly — dual control' }, sup.token);
   console.log('flag second review:', flag.status, flag.json.requiresSecond);

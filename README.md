@@ -1,5 +1,7 @@
 # EYES OF VICTORY 2027
 
+[![CI](https://github.com/baiitax/eagle_eye/actions/workflows/ci.yml/badge.svg)](https://github.com/baiitax/eagle_eye/actions)
+
 **Kano State — Election Situation Room & Monitoring Platform** · *Monitor. Verify. Respond. Report.*
 Public domain tagline: *See the Evidence. Follow the Process. Understand the Election.*
 
@@ -10,10 +12,27 @@ A complete working prototype of an enterprise election-monitoring and command-ce
 ## Run
 
 ```bash
-node server/server.js        # → http://localhost:3000  (zero npm dependencies)
+npm install                 # devDependencies only (jsdom, for the test suites)
+node server/server.js       # → http://localhost:3000  (zero runtime dependencies)
 ```
 
 First boot seeds everything and loads the **Collation Phase (27 Feb 2027, 16:20 WAT)** scenario at 30× speed. Switch scenarios from the central header dropdown, **Admin → Simulation Control**, or `POST /api/admin/simulation {action:'reset'}` for a full reset.
+
+## M1 Foundation — security hardening & CI (2026-09-01)
+
+Post-audit hardening delivered in this release:
+
+- **P0-01 fixed:** the HMAC session key is no longer hardcoded. Production/serverless boots
+  **fail closed** (`SESSION_SECRET_REQUIRED`) until `SESSION_SECRET` is set; local demos use a
+  random per-boot secret. **Set `SESSION_SECRET` in Vercel → Settings → Environment Variables**
+  (`openssl rand -hex 32`), otherwise the deployment intentionally refuses to start.
+- **P1-01 fixed:** geographic scope on the LG/Senatorial evidence APIs is now
+  authenticated-user-first (query-parameter overrides restricted to centrally-scoped roles).
+- **CI gates:** `npm run lint` (static analysis incl. route-dup detection) ·
+  `npm run secret-scan` (tree + full git history) · `npm test` (self-contained runner, 12 suites)
+  — wired into GitHub Actions (`.github/workflows/ci.yml`).
+- **Environment parity:** `.env.example`, npm scripts, jsdom as the single dev dependency.
+- Regression coverage in `scripts/security-test.js`; status tracked in `AUDIT/ROADMAP_STATUS.md`.
 
 ## Deploying to Vercel
 

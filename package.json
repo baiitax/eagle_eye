@@ -1,13 +1,18 @@
 {
   "name": "eyes-of-victory-2027",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "EYES OF VICTORY 2027 — Kano State election-monitoring & command ecosystem (demo). Public domain, field agent app, LG/senatorial/central situation rooms, SENTINEL security operations centre.",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node scripts/sentinel-test.js && node scripts/login-test.js"
+    "test": "node scripts/run-all-tests.js",
+    "lint": "node scripts/lint.js",
+    "secret-scan": "node scripts/secret-scan.js --history"
   },
   "engines": { "node": ">=18" },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  },
   "license": "UNLICENSED"
 }

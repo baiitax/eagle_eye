@@ -6,7 +6,22 @@ const { S, audit } = require('./store');
 
 const SESSION_TTL = 12 * 3600 * 1000;
 const CHALLENGE_TTL = 5 * 60 * 1000;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'ev2027-kn-demo-session-secret';
+
+// P0-01 (audit): no committed default signing key.
+//  - Production / serverless: SESSION_SECRET is REQUIRED — boot fails closed with
+//    a clear message if it is missing.
+//  - Local development/demo: a random per-boot secret keeps local previews safe
+//    (sessions reset on restart — acceptable for the demo).
+let SESSION_SECRET = process.env.SESSION_SECRET || '';
+if (!SESSION_SECRET && !process.env.VERCEL && process.env.NODE_ENV !== 'production') {
+  SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('[auth] SESSION_SECRET not set — using a random per-boot secret (sessions reset on restart). Set SESSION_SECRET for stable sessions.');
+}
+function assertSessionSecretConfigured() {
+  if (!SESSION_SECRET) {
+    throw new Error('SESSION_SECRET_REQUIRED: set the SESSION_SECRET environment variable (generate one with: openssl rand -hex 32). On Vercel: Project → Settings → Environment Variables.');
+  }
+}
 
 // Signed session tokens: on serverless hosts the in-memory session store is lost
 // whenever an instance recycles, so every token carries an HMAC-signed
@@ -216,4 +231,4 @@ function publicUser(u) {
   return { id: u.id, username: u.username, name: u.name, roleId: u.roleId, roleName: S().roles.find(r => r.id === u.roleId)?.name, scope: u.scope, phone: u.phone, mfa: u.mfa, status: u.status, agentId: u.agentId };
 }
 
-module.exports = { requireAuth, requirePerm, can, currentUser, loginStep1, loginStep2, publicUser, rateLimit, clientIp, sendJson, SESSION_TTL };
+module.exports = { requireAuth, requirePerm, can, currentUser, loginStep1, loginStep2, publicUser, rateLimit, clientIp, sendJson, SESSION_TTL, assertSessionSecretConfigured };

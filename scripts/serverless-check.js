@@ -3,6 +3,7 @@
 // instance recycle (in-memory sessions lost → HMAC-signed tokens must still work).
 'use strict';
 process.env.VERCEL = '1'; // force serverless behaviour (SSE 501, asset caching, health flag)
+process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'serverless-check-secret-0123456789abcdef0123456789abcdef';
 const http = require('http');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -32,6 +33,14 @@ async function login(u, p) {
 }
 
 (async () => {
+  // P0-01 regression: serverless boot MUST fail closed without SESSION_SECRET
+  {
+    const { execFileSync } = require('child_process');
+    const snippet = "process.env.VERCEL='1'; delete process.env.SESSION_SECRET; const {boot}=require('./server/server.js'); try { boot(); console.log('BOOTED'); } catch(e) { console.log('ERR:'+String(e.message).slice(0,30)); }";
+    const out = execFileSync(process.execPath, ['-e', snippet], { cwd: ROOT, env: { VERCEL: '1', PATH: process.env.PATH } }).toString();
+    ok('P0-01: serverless boot fails closed without SESSION_SECRET', /ERR:SESSION_SECRET_REQUIRED/.test(out), out.trim().slice(0, 80));
+  }
+
   boot(); // simulate Vercel cold start boot (idempotent — the handler calls it too)
   const server = http.createServer((q, s) => { handleRequest(q, s).catch(e => { console.error('handler error', e); s.writeHead(500); s.end('error'); }); });
   await new Promise(r => server.listen(PORT, '127.0.0.1', r));

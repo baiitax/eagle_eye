@@ -1,7 +1,10 @@
 // public-test.js — drives EYES OF VICTORY — ELECTION OBSERVATORY 2.0 (public, no auth)
 let jsdomMod;
-try { jsdomMod = require('/tmp/uitest/node_modules/jsdom'); }
-catch (e) { console.error('jsdom not found at /tmp/uitest — run: cd /tmp/uitest && npm install jsdom'); process.exit(1); }
+try { jsdomMod = require('jsdom'); }
+catch (e) {
+  try { jsdomMod = require('/tmp/uitest/node_modules/jsdom'); }
+  catch (e2) { console.error('jsdom not found — run: npm install (repo) or cd /tmp/uitest && npm install jsdom'); process.exit(1); }
+}
 const { JSDOM, VirtualConsole } = jsdomMod;
 const BASE = 'http://localhost:3000';
 function canvasMock(){const g={addColorStop(){}};return{fillRect(){},strokeRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fill(){},arc(){},fillText(){},closePath(){},save(){},restore(){},scale(){},translate(){},rotate(){},clearRect(){},drawImage(){},rect(){},setLineDash(){},createLinearGradient:()=>g,createRadialGradient:()=>g,createPattern:()=>g,measureText:()=>({width:10}),set fillStyle(v){},set strokeStyle(v){},set lineWidth(v){},set font(v){},set textAlign(v){},set globalAlpha(v){}};}

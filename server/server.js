@@ -1335,7 +1335,9 @@ route('GET', /^\/api\/senatorial\/evidence$/, (req, res) => {
   if (!u || !auth.can(u, 'evidence.view')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
   const st = S();
   const url = new URL(req.url, 'http://x');
-  const district = u.scope?.senatorial || url.searchParams.get('senatorial') || null;
+  // AUTHZ-01 (audit, P1): the authenticated user's scope is authoritative — the
+  // query parameter is honoured only for centrally-scoped (unscoped) roles.
+  const district = u.scope?.senatorial ? u.scope.senatorial : (url.searchParams.get('senatorial') || null);
   const rows = [];
   for (const e of st.evidence) {
     if (e.kind !== 'EC8A' || !e.submissionId) continue;
@@ -1475,7 +1477,9 @@ route('GET', /^\/api\/lg\/evidence$/, (req, res) => {
   if (!u || !auth.can(u, 'evidence.view')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
   const st = S();
   const url = new URL(req.url, 'http://x');
-  const lgaName = u.scope?.lga || url.searchParams.get('lga') || null;
+  // AUTHZ-01 (audit, P1): the authenticated user's scope is authoritative — the
+  // query parameter is honoured only for centrally-scoped (unscoped) roles.
+  const lgaName = u.scope?.lga ? u.scope.lga : (url.searchParams.get('lga') || null);
   const lga = lgaName ? st.lgas.find(l => l.name === lgaName) : null;
   const rows = [];
   for (const e of st.evidence) {
@@ -3473,6 +3477,7 @@ let booted = false;
 function boot() {
   if (booted) return;
   booted = true;
+  auth.assertSessionSecretConfigured(); // P0-01: fail closed when the signing key is missing
   store.load();
   seedStatic();
   sim.buildPlan();

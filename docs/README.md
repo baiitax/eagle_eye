@@ -135,7 +135,16 @@ Both scripts run against a live server and exercise RBAC negative cases, duplica
 
 `api/index.js` (serverless entry) + `vercel.json` (rewrite-all to the function, `maxDuration: 30`, `includeFiles: public/**,data/**`) + `package.json` make the repo deployable on Vercel as-is (Framework Preset: **Other**). The same `handleRequest`/`boot` exports used locally serve every page, API and asset. Serverless notes: deterministic re-seed per cold start, warm instances keep state, HMAC-signed session tokens survive instance recycling (user IDs are deterministic across cold starts; MFA challenges are self-contained signed payloads, so login and post-login navigation work on any instance), SSE auto-disabled (client checks `/api/health`), assets cached `public, max-age=3600`. For full realtime/persistence use the long-running server (`node server/server.js`). Verified by `scripts/serverless-check` (24 checks: pages, assets, cache headers, SSE 501, login, signed-token recycle, tamper rejection, **full cold-start wipe + re-seed with token/challenge issued pre-wipe**, idempotent boot).
 
-## 9. Public domain home & secure sign-in
+## 9. M1 Foundation (security hardening + CI)
+
+Audit fixes: session secret externalized with fail-closed boot on production/serverless
+(`SESSION_SECRET_REQUIRED` without the env var; random per-boot locally) · AUTHZ-01 scope
+bypass fixed (scope-first on LG/Senatorial evidence APIs, override restricted to central
+roles) · safeStore gap closed (remember-device). Gates: `scripts/lint.js`,
+`scripts/secret-scan.js` (history included), `scripts/run-all-tests.js` (12 suites),
+`.github/workflows/ci.yml`, `.env.example`, `scripts/security-test.js` (P0/P1 regressions).
+
+## 10. Public domain home & secure sign-in
 
 `/` — public election domain: live KPI strip, Result Observatory (senatorial districts + governorship monitored vote share, verified submissions only), incident monitor, IReV watch, Kano map, DEMO/unofficial disclaimers, SIGN IN (header) + bottom login dock, role-dashboard banner for signed-in users, authorized-portal grid.
 

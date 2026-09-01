@@ -21,6 +21,13 @@ function ensureBoot() {
 }
 
 module.exports = async function handler(req, res) {
-  await ensureBoot();
+  try {
+    await ensureBoot();
+  } catch (e) {
+    const msg = String(e && e.message || e || 'Boot failure');
+    const body = JSON.stringify({ error: 'BOOT_FAILURE', message: msg });
+    res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
+    return res.end(body);
+  }
   return handleRequest(req, res);
 };

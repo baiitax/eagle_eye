@@ -208,7 +208,7 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
     try {
       const res = await loginStep1($('#lu', wrap).value.trim(), $('#lp', wrap).value);
       challenge = res.challenge; mfaCode = res.mfaCode;
-      if ($('#remember', wrap).checked) localStorage.setItem('ndc_remembered_user', $('#lu', wrap).value.trim());
+      if ($('#remember', wrap).checked) window.safeStore.set('ndc_remembered_user', $('#lu', wrap).value.trim());
       $('#otpshow', wrap).innerHTML = `DEMO OTP: <b style="font-size:16px;color:#fde047">${mfaCode}</b>`;
       $('.step1', wrap).style.display = 'none';
       $('.step2', wrap).style.display = 'block';
