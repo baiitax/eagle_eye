@@ -3,7 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 const { uuid, mulberry32, ri, pick, hashPassword } = require('./util');
+const totp = require('./totp');
 const { S, set } = require('./store');
+
+// M2: deterministic TOTP enrollment — RFC 6238 secrets derived from the signing
+// master + username, so serverless cold starts re-seed identically and stateless
+// MFA challenges keep verifying across instances. (Production stores a random
+// per-user secret in the database instead.)
+const TOTP_MASTER = process.env.SESSION_SECRET || 'demo-totp-master';
 
 const GEO_FILE = path.join(__dirname, '..', '..', 'data', 'geo.json');
 
@@ -162,8 +169,10 @@ function seedStatic() {
       // deterministic IDs: serverless hosts re-seed on every cold start; stable IDs
       // keep HMAC-signed session tokens valid across instances (auth.js currentUser)
       id: 'u-' + du.u, username: du.u, name: du.n, roleId: du.r, scope: du.scope,
-      passwordHash: hashPassword(du.p), mfa: true, status: 'ACTIVE', phone: '0803' + ri(rng, 1000000, 9999999),
-      createdAt: Date.now(),
+      passwordHash: hashPassword(du.p), mfa: true, mfaType: 'TOTP', totpSecret: totp.deterministicSecret(TOTP_MASTER, du.u),
+      status: 'ACTIVE', phone: '0803' + ri(rng, 1000000, 9999999),
+      createdAt: Date.now(), lastLoginAt: null, loginCount: 0, failedLoginCount: 0, lastFailedAt: null,
+      sessionsInvalidatedAt: 0, passwordChangedAt: Date.now(),
     });
   }
 

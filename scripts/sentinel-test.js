@@ -119,9 +119,15 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; console.log('  ✓ 
 
   console.log('== IDENTITY / SESSIONS / NETWORK / SECRETS (§14/15/40-43) ==');
   const idn = await J('/identity');
-  ok('identity metrics + MFA coverage 100%', idn.json.mfaCoverage === 100 && idn.json.sessions.length >= 5 && idn.json.failedLogins >= 0);
-  const term = await J('/sessions/SES-0004/terminate', { method: 'POST', body: {} });
+  ok('identity metrics REAL + MFA coverage 100%', idn.json.mfaCoverage === 100 && idn.json.source === 'LIVE AUTH SUBSYSTEM' && idn.json.sessions.length >= 1 && idn.json.failedLogins >= 0);
+  // M2: terminate a REAL session from SENTINEL
+  const victim = await apiLogin('observer', 'Observer@123!');
+  const idn2 = await J('/identity');
+  const vrow = idn2.json.sessions.filter(x => x.user === 'observer').sort((a, b) => b.loginAt - a.loginAt)[0];
+  ok('SENTINEL sees the real observer session', !!vrow);
+  const term = await J('/sessions/' + vrow.id + '/terminate', { method: 'POST', body: {} });
   ok('compromised session terminated', term.json.ok && term.json.session.active === false);
+  ok('terminated token REALLY revoked', (await fetch(BASE + '/api/me', { headers: { Authorization: 'Bearer ' + victim.token } })).status === 401);
   const net = await J('/network');
   ok('TLS monitor incl expiring cert', net.json.tls.length >= 3 && net.json.tls.some(t => t.status === 'EXPIRING_SOON'));
   const secrets = await J('/secrets');
@@ -151,10 +157,17 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; console.log('  ✓ 
 
   console.log('== ACTION CENTRE (§47/49/50/16) ==');
   const cat = await J('/action-catalog');
+  // M2 §16: HIGH/CRITICAL actions require step-up TOTP — fetch a current code per actor
+  const A = (path, opts = {}) => fetch(BASE + path, { method: opts.method || 'GET', headers: { ...(opts.token ? { Authorization: 'Bearer ' + opts.token } : {}) }, }).then(r => r.json());
+  async function stepupFor(token, username, password) {
+    const l = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }).then(r => r.json());
+    return l.mfaCode; // current TOTP code for that user (demo)
+  }
+  const socCode = async () => (await A('/api/auth/mfa/setup', { token: auth.token })).currentCode; // fresh TOTP each use
   ok('25-action catalog with risk/reversible/approval', Object.keys(cat.json.catalog).length >= 25 && cat.json.catalog.ISOLATE_NODE.risk === 'HIGH' && cat.json.catalog.PRODUCTION_SHUTDOWN.approval === 'DUAL' && cat.json.catalog.ACK_ALERT.risk === 'LOW');
   const forb = await J('/actions/request', { method: 'POST', token: aud.token, body: { action: 'ISOLATE_NODE', target: 'NODE-0001' } });
   ok('auditor blocked from requesting actions (403)', forb.status === 403);
-  const req1 = await J('/actions/request', { method: 'POST', body: { action: 'ISOLATE_NODE', target: 'NODE-0003', detail: 'Test isolation flow' } });
+  const req1 = await J('/actions/request', { method: 'POST', body: { action: 'ISOLATE_NODE', target: 'NODE-0003', detail: 'Test isolation flow', stepupCode: await socCode() } });
   ok('HIGH action requested → REQUESTED (SINGLE approval)', req1.json.action.status === 'REQUESTED' && req1.json.action.approval === 'SINGLE' && req1.json.requiresApproval);
   const appr1 = await J('/actions/' + req1.json.action.id + '/approve', { method: 'POST', token: sec.token, body: { note: 'Approved for test' } });
   ok('director approves', appr1.json.action.status === 'APPROVED' && appr1.json.action.approvedBy);
@@ -167,7 +180,8 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; console.log('  ✓ 
   const n3b = await J('/nodes?id=NODE-0003');
   ok('node restored to pre-action state', n3b.json.node.status === 'HEALTHY');
   // dual authorization
-  const req2 = await J('/actions/request', { method: 'POST', token: sec.token, body: { action: 'PRODUCTION_SHUTDOWN', target: 'ALL-APIS', detail: 'DR exercise' } });
+  const secCode = (await A('/api/auth/mfa/setup', { token: sec.token })).currentCode;
+  const req2 = await J('/actions/request', { method: 'POST', token: sec.token, body: { action: 'PRODUCTION_SHUTDOWN', target: 'ALL-APIS', detail: 'DR exercise', stepupCode: secCode } });
   ok('CRITICAL action → DUAL authorization', req2.json.action.approval === 'DUAL' && req2.json.action.status === 'REQUESTED');
   const selfAppr = await J('/actions/' + req2.json.action.id + '/approve', { method: 'POST', token: sec.token, body: { note: 'self' } });
   ok('requester cannot self-approve DUAL action', selfAppr.status === 400 && selfAppr.json.error === 'SECOND_APPROVER_REQUIRED');
@@ -175,14 +189,14 @@ const ok = (name, cond, extra = '') => { if (cond) { pass++; console.log('  ✓ 
   ok('first approver → PENDING_DUAL', appr2a.json.pendingDual === true && appr2a.json.action.status === 'PENDING_DUAL');
   const appr2b = await J('/actions/' + req2.json.action.id + '/approve', { method: 'POST', token: superAdm.token, body: { note: 'second approver (independent)' } });
   ok('second approver → APPROVED', appr2b.json.action.status === 'APPROVED' && appr2b.json.action.approvals.length === 2);
-  const rej = await J('/actions/request', { method: 'POST', body: { action: 'BLOCK_COMPONENT', target: 'NODE-0004', detail: 'test reject' } });
+  const rej = await J('/actions/request', { method: 'POST', body: { action: 'BLOCK_COMPONENT', target: 'NODE-0004', detail: 'test reject', stepupCode: await socCode() } });
   const rejR = await J('/actions/' + rej.json.action.id + '/reject', { method: 'POST', token: sec.token, body: { note: 'Not required' } });
   ok('rejection flow → NOT EXECUTED', rejR.json.action.status === 'REJECTED');
 
   console.log('== BREAK-GLASS (§48) ==');
   const bgBad = await J('/breakglass/open', { method: 'POST', body: { reason: 'short' } });
   ok('reason required (min 10 chars)', bgBad.status === 400 && bgBad.json.error === 'REASON_REQUIRED');
-  const bgOk = await J('/breakglass/open', { method: 'POST', body: { reason: 'Emergency DB recovery access required', incidentId: 'SEC-2027-000414', minutes: 20 } });
+  const bgOk = await J('/breakglass/open', { method: 'POST', body: { reason: 'Emergency DB recovery access required', incidentId: 'SEC-2027-000414', minutes: 20, stepupCode: await socCode() } });
   ok('emergency session with expiry + audit', bgOk.json.ok && bgOk.json.session.expiresAt > Date.now() && bgOk.json.session.minutes === 20);
 
   console.log('== ANALYTICS / KPIs / COMPLIANCE / RISK (§55-58) ==');

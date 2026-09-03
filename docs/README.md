@@ -144,7 +144,18 @@ roles) · safeStore gap closed (remember-device). Gates: `scripts/lint.js`,
 `scripts/secret-scan.js` (history included), `scripts/run-all-tests.js` (12 suites),
 `.github/workflows/ci.yml`, `.env.example`, `scripts/security-test.js` (P0/P1 regressions).
 
-## 10. Public domain home & secure sign-in
+## 10. M2 Identity & Access
+
+Real TOTP (RFC 6238, vector-verified) per-account enrollment with demo code display + 30s
+rotation · revocable/refreshable HMAC-signed sessions (server-side revocation from logout,
+SENTINEL and admin; token rotation retires the previous token incl. the stateless fallback;
+72h absolute cap) · enumeration-safe password reset with signed 15-min tokens + strong-password
+policy enforced on every password path · central rate-limit registry (login/mfa/pwreset/api,
+admin + SENTINEL adjustable, cooldown lockouts) · SENTINEL identity/privileged-access/step-up
+now REAL (live telemetry, real sessions, TOTP step-up for HIGH/CRITICAL actions & break-glass).
+Suites: mfa-test (63) + real-browser review (9) + full runner 13/13.
+
+## 11. Public domain home & secure sign-in
 
 `/` — public election domain: live KPI strip, Result Observatory (senatorial districts + governorship monitored vote share, verified submissions only), incident monitor, IReV watch, Kano map, DEMO/unofficial disclaimers, SIGN IN (header) + bottom login dock, role-dashboard banner for signed-in users, authorized-portal grid.
 

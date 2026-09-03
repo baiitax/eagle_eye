@@ -36,7 +36,7 @@ const ok=(name,cond,extra='')=>{ if(cond){pass++;console.log('  ✓ '+name);} el
   ok('login card present', !!$('.login-card'));
   ok('glass styling applied', !!$('.secure-pill') && !!$('#pwtoggle') && !!$('#remember'));
   ok('brand block', w.document.body.textContent.includes('EYES OF VICTORY') && w.document.body.textContent.includes('SECURE CONNECTION'));
-  ok('input icons', $$('.inp-wrap .inp-ic').length===2);
+  ok('input icons', $$('.step1 .inp-wrap .inp-ic').length===2);
   ok('demo quick-fill chip', !!$('#qfill'));
   ok('preloader removed', !$('#ev-preloader'));
 
@@ -60,9 +60,9 @@ const ok=(name,cond,extra='')=>{ if(cond){pass++;console.log('  ✓ '+name);} el
   $('#lbtn').click(); await sleep(900);
   ok('moves to MFA step', $('.step2').style.display==='block');
   ok('6 OTP boxes', $$('#otpboxes input').length===6);
-  ok('demo OTP pill shown', /DEMO OTP: \*\*\*/.test($('#otpshow').textContent.replace(/\s+/g,' ')) || $('#otpshow').textContent.includes('DEMO OTP'));
+  ok('demo TOTP pill shown', $('#otpshow').textContent.includes('DEMO OTP'));
   ok('countdown timer present', !!$('#otptimer'));
-  ok('timer matches 5-minute server TTL', /^[45]:\d{2}$/.test($('#otptimer').textContent), 'got: '+$('#otptimer').textContent);
+  ok('timer matches TOTP 30s rotation (M2)', /^0:[0-3]\d$/.test($('#otptimer').textContent), 'got: '+$('#otptimer').textContent);
   ok('resend disabled initially', $('#resend').classList.contains('disabled'));
   // type OTP via boxes (read the demo code from the pill)
   const codeMatch = $('#otpshow').textContent.match(/(\d{6})/);

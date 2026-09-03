@@ -19,6 +19,7 @@ const API = {
   setAuth(token, user, perms) {
     this.token = token; this.user = user; this.perms = perms || [];
     window.safeStore.set('ndc_token', token);
+    window.safeStore.set('ndc_token_issued', String(Date.now()));
     window.safeStore.set('ndc_user', JSON.stringify(user));
     window.safeStore.set('ndc_perms', JSON.stringify(this.perms));
   },
@@ -89,6 +90,23 @@ async function sseConnect() {
 }
 function sseOn(fn) { sseHandlers.push(fn); }
 function sseOff() { sseHandlers.length = 0; if (sseSource) { sseSource.close(); sseSource = null; } }
+
+// ---- M2: sliding session refresh (real, server-side revocation-safe) ----
+async function refreshAuthToken() {
+  if (!API.token) return false;
+  const issued = parseInt(window.safeStore.get('ndc_token_issued') || '0', 10);
+  if (!issued || Date.now() - issued < 45 * 60000) return false; // refresh after ~45 min of age
+  try {
+    const r = await API.post('/api/auth/refresh', {}, { noRelogin: true, timeout: 8000 });
+    if (r && r.token) {
+      API.token = r.token;
+      window.safeStore.set('ndc_token', r.token);
+      window.safeStore.set('ndc_token_issued', String(Date.now()));
+      return true;
+    }
+  } catch (e) { /* best-effort — re-login path handles real expiry */ }
+  return false;
+}
 
 // ---- boot helper: fetches bootstrap + overview with retries (proxy-safe) ----
 async function apiBoot() {
@@ -170,6 +188,24 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
       <div class="mt12"><button class="btn primary btnblock login-btn" id="mbtn">✓ VERIFY & ENTER SITUATION ROOM</button></div>
       <div class="center small muted mt8"><a href="#" id="backlink">← back to sign in</a></div>
     </div>
+    <div class="step3" style="display:none">
+      <div class="center"><span class="pill">Password reset</span></div>
+      <label class="fl">Agent ID / User ID</label>
+      <div class="inp-wrap"><span class="inp-ic">👤</span><input class="inp" id="ru" autocomplete="off" placeholder="e.g. director"></div>
+      <div class="mt8"><button class="btn primary btnblock" id="rbtn1">REQUEST RESET CODE</button></div>
+      <div class="small mt8" id="rbox1"></div>
+      <div id="rstep2" style="display:none">
+        <label class="fl">Reset code</label>
+        <input class="inp" id="rc" inputmode="numeric" maxlength="6" placeholder="6-digit code">
+        <label class="fl">New password</label>
+        <input class="inp" id="rp" type="password" placeholder="min 8 chars · letters + numbers">
+        <label class="fl">Confirm new password</label>
+        <input class="inp" id="rp2" type="password" placeholder="repeat new password">
+        <div class="mt8"><button class="btn primary btnblock" id="rbtn2">SET NEW PASSWORD</button></div>
+        <div class="small mt8" id="rbox2"></div>
+      </div>
+      <div class="center small muted mt8"><a href="#" id="resetbacklink">← back to sign in</a></div>
+    </div>
     <div class="mt12 center small dim">© 2026–2027 NDC Election Operations · Unofficial monitoring platform · Not affiliated with INEC</div>
   </div></div>`);
   if (mountEl) { mountEl.innerHTML = ''; mountEl.appendChild(wrap); }
@@ -180,7 +216,7 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
   card.insertBefore(errBox, $('.step1', wrap));
   const showErr = (msg) => { errBox.textContent = msg; errBox.style.display = 'block'; };
   const clearErr = () => { errBox.textContent = ''; errBox.style.display = 'none'; };
-  let challenge = null, mfaCode = null, otpTimer = null, secsLeft = 300, submitting = false, networkFail = false;
+  let challenge = null, mfaCode = null, otpTimer = null, secsLeft = 30, submitting = false, networkFail = false, lastCreds = null, challengeExpiresAt = 0;
 
   const shakeCard = () => { const c = $('.login-card', wrap); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); };
 
@@ -207,13 +243,15 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
     btn.disabled = true; btn.textContent = '◌ VERIFYING…';
     try {
       const res = await loginStep1($('#lu', wrap).value.trim(), $('#lp', wrap).value);
+      lastCreds = { username: $('#lu', wrap).value.trim(), password: $('#lp', wrap).value };
       challenge = res.challenge; mfaCode = res.mfaCode;
+      challengeExpiresAt = Date.now() + 5 * 60000; // server challenge TTL
       if ($('#remember', wrap).checked) window.safeStore.set('ndc_remembered_user', $('#lu', wrap).value.trim());
-      $('#otpshow', wrap).innerHTML = `DEMO OTP: <b style="font-size:16px;color:#fde047">${mfaCode}</b>`;
+      $('#otpshow', wrap).innerHTML = `DEMO OTP: <b style="font-size:16px;color:#fde047">${mfaCode}</b> <span style="color:#8ba0bd">(real TOTP · rotates in 30s)</span>`;
       $('.step1', wrap).style.display = 'none';
       $('.step2', wrap).style.display = 'block';
       buildOtp();
-      startOtpTimer();
+      startOtpTimer(res.totpRotatesInSec || 30);
     } catch (e) {
       showErr(e.message);
       shakeCard();
@@ -280,27 +318,57 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
     box._inputs = inputs;
     updateVerifyState();
   }
-  function startOtpTimer() {
+  function startOtpTimer(seconds) {
     if (otpTimer) clearInterval(otpTimer);
-    secsLeft = 300; // matches the server's 5-minute challenge TTL
+    secsLeft = seconds || 30;
     const t = $('#otptimer', wrap), r = $('#resend', wrap);
     r.classList.add('disabled');
+    t.textContent = '0:' + String(secsLeft).padStart(2, '0');
     otpTimer = setInterval(() => {
       secsLeft--;
       if (secsLeft <= 0) {
         clearInterval(otpTimer); otpTimer = null;
-        t.textContent = '0:00'; r.classList.remove('disabled');
-        backToSignIn('Verification code expired. Please sign in again for a fresh code.');
+        if (Date.now() > challengeExpiresAt) {
+          t.textContent = '0:00'; r.classList.remove('disabled');
+          backToSignIn('Verification session expired. Please sign in again for a fresh code.');
+          return;
+        }
+        // TOTP window rotated: fetch the fresh code (demo) and restart the countdown
+        refreshDemoCode();
         return;
       }
-      t.textContent = Math.floor(secsLeft / 60) + ':' + String(secsLeft % 60).padStart(2, '0');
+      t.textContent = '0:' + String(secsLeft).padStart(2, '0');
     }, 1000);
   }
-  $('#resend', wrap).onclick = (e) => {
+  async function refreshDemoCode() {
+    const t = $('#otptimer', wrap);
+    try {
+      const r = await API.post('/api/auth/mfa/code', { challenge }, { noRelogin: true });
+      mfaCode = r.mfaCode;
+      $('#otpshow', wrap).innerHTML = `DEMO OTP: <b style="font-size:16px;color:#fde047">${mfaCode}</b> <span style="color:#8ba0bd">(real TOTP · rotates in 30s)</span>`;
+      toast('Code rotated', 'The displayed TOTP code was refreshed.');
+      startOtpTimer(r.rotatesInSec || 30);
+    } catch (e) {
+      t.textContent = '0:00'; $('#resend', wrap).classList.remove('disabled');
+      backToSignIn('Could not refresh the verification code. Please sign in again.');
+    }
+  }
+  $('#resend', wrap).onclick = async (e) => {
     e.preventDefault();
     if ($('#resend', wrap).classList.contains('disabled')) return;
-    toast('Code re-issued', 'In demo mode the same OTP remains valid — it is displayed above. In production a fresh code would be delivered.');
-    startOtpTimer();
+    if (!lastCreds) return backToSignIn('Please sign in again.');
+    // re-issue a fresh challenge (new 5-minute TTL) with the same credentials
+    $('#resend', wrap).textContent = '◌ re-issuing…';
+    try {
+      const res = await loginStep1(lastCreds.username, lastCreds.password);
+      challenge = res.challenge; mfaCode = res.mfaCode;
+      challengeExpiresAt = Date.now() + 5 * 60000;
+      $('#otpshow', wrap).innerHTML = `DEMO OTP: <b style="font-size:16px;color:#fde047">${mfaCode}</b> <span style="color:#8ba0bd">(real TOTP · rotates in 30s)</span>`;
+      startOtpTimer(res.totpRotatesInSec || 30);
+    } catch (err) {
+      backToSignIn('Could not re-issue the code. Please sign in again.');
+    }
+    $('#resend', wrap).textContent = 'Resend code';
   };
   function backToSignIn(msg) {
     showErr(msg);
@@ -309,6 +377,7 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
       if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
       challenge = null; submitting = false; networkFail = false;
       $('.step2', wrap).style.display = 'none';
+      $('.step3', wrap).style.display = 'none';
       $('.step1', wrap).style.display = 'block';
       const mb = $('#mbtn', wrap);
       mb.textContent = '✓ VERIFY & ENTER SITUATION ROOM';
@@ -404,7 +473,55 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
   $('#backlink', wrap).onclick = (e) => { e.preventDefault(); if (otpTimer) { clearInterval(otpTimer); otpTimer = null; } challenge = null; submitting = false; clearErr(); const mb = $('#mbtn', wrap); mb.textContent = '✓ VERIFY & ENTER SITUATION ROOM'; mb.style.background = ''; mb.style.borderColor = ''; const lb = $('#lbtn', wrap); lb.disabled = false; lb.textContent = '⚡ SECURE LOGIN →'; $('.step2', wrap).style.display = 'none'; $('.step1', wrap).style.display = 'block'; };
   $('#forgotLink', wrap).onclick = (e) => {
     e.preventDefault();
-    toast('PIN reset', 'Contact your assigned supervisor or technical support. An administrator will issue a temporary PIN — credentials are never stored in plaintext.', 'medium');
+    if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
+    challenge = null; submitting = false; clearErr();
+    $('.step1', wrap).style.display = 'none';
+    $('.step2', wrap).style.display = 'none';
+    $('.step3', wrap).style.display = 'block';
+    const remembered = window.safeStore.get('ndc_remembered_user') || '';
+    $('#ru', wrap).value = $('#lu', wrap).value || remembered;
+    $('#rbox1', wrap).textContent = '';
+    $('#rstep2', wrap).style.display = 'none';
+  };
+  $('#rbtn1', wrap).onclick = async () => {
+    const uname = $('#ru', wrap).value.trim();
+    if (!uname) { $('#rbox1', wrap).innerHTML = '<span style="color:#f87171">Enter your user ID first.</span>'; return; }
+    $('#rbtn1', wrap).disabled = true; $('#rbtn1', wrap).textContent = '◌ REQUESTING…';
+    try {
+      const res = await API.post('/api/auth/password-reset/request', { username: uname }, { noRelogin: true });
+      if (res.demo && res.demo.code) {
+        $('#rbox1', wrap).innerHTML = `<span style="color:#fde047">Reset code: <b style="font-size:15px">${esc(res.demo.code)}</b></span><div class="dim">DEMO MODE — the code is displayed. Production delivers it via a verified channel. Expires in 15 minutes.</div>`;
+        wrap._resetToken = res.demo.token;
+        $('#rstep2', wrap).style.display = 'block';
+      } else {
+        $('#rbox1', wrap).innerHTML = `<span style="color:#4ade80">${esc(res.note || 'If the account exists, reset instructions have been sent.')}</span>`;
+      }
+    } catch (err) {
+      $('#rbox1', wrap).innerHTML = `<span style="color:#f87171">${esc(err.message)}</span>`;
+    }
+    $('#rbtn1', wrap).disabled = false; $('#rbtn1', wrap).textContent = 'REQUEST RESET CODE';
+  };
+  $('#rbtn2', wrap).onclick = async () => {
+    const code = $('#rc', wrap).value.trim(), pw = $('#rp', wrap).value, pw2 = $('#rp2', wrap).value;
+    if (code.length !== 6) { $('#rbox2', wrap).innerHTML = '<span style="color:#f87171">Enter the 6-digit reset code.</span>'; return; }
+    if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) { $('#rbox2', wrap).innerHTML = '<span style="color:#f87171">Password must be at least 8 characters with letters and numbers.</span>'; return; }
+    if (pw !== pw2) { $('#rbox2', wrap).innerHTML = '<span style="color:#f87171">Passwords do not match.</span>'; return; }
+    $('#rbtn2', wrap).disabled = true; $('#rbtn2', wrap).textContent = '◌ UPDATING…';
+    try {
+      const res = await API.post('/api/auth/password-reset/complete', { token: wrap._resetToken, code, newPassword: pw }, { noRelogin: true });
+      $('#rbox2', wrap).innerHTML = `<span style="color:#4ade80">${esc(res.message || 'Password updated.')}</span>`;
+      setTimeout(() => backToSignIn('Password updated. Sign in with your new password.'), 1600);
+    } catch (err) {
+      $('#rbox2', wrap).innerHTML = `<span style="color:#f87171">${esc(err.message)}</span>`;
+      $('#rbtn2', wrap).disabled = false; $('#rbtn2', wrap).textContent = 'SET NEW PASSWORD';
+    }
+  };
+  $('#resetbacklink', wrap).onclick = (e) => {
+    e.preventDefault();
+    clearErr();
+    $('.step3', wrap).style.display = 'none';
+    $('.step1', wrap).style.display = 'block';
+    const lb = $('#lbtn', wrap); lb.disabled = false; lb.textContent = '⚡ SECURE LOGIN →';
   };
   if ($('#bioBtn', wrap)) {
     $('#bioBtn', wrap).onclick = () => {
@@ -429,6 +546,7 @@ function showLogin({ portalName, roleHint, onSuccess, creds, opts = {} }) {
 
 async function requireSession(portalName, roleHint, creds, opts) {
   if (API.token) {
+    await refreshAuthToken(); // M2: sliding refresh (best-effort)
     try {
       const me = await API.get('/api/me', { noRelogin: true });
       API.setAuth(API.token, me.user, me.permissions);
@@ -516,3 +634,4 @@ async function bootPortal(portalName, roleHint, creds, opts = {}) {
 window.API = API; window.sseConnect = sseConnect; window.sseOn = sseOn; window.sseOff = sseOff;
 window.loginStep1 = loginStep1; window.loginStep2 = loginStep2; window.showLogin = showLogin; window.requireSession = requireSession;
 window.apiBoot = apiBoot; window.bootPortal = bootPortal; window.showBootFailure = showBootFailure; window.rolePortal = rolePortal;
+window.refreshAuthToken = refreshAuthToken;

@@ -52,10 +52,44 @@ findings → resolution → verification per milestone.
   central20, irev, public, login, sentinel, serverless-check) — ~650 checks, 0 failures
 - `serverless-check` → 31/31 including P0-01 fail-closed regression
 
+## M2 COMPLETE — IDENTITY & ACCESS (2026-09-01)
+
+**Delivered (all verified):**
+- **Real TOTP MFA (RFC 6238)** — zero-dependency engine (`server/lib/totp.js`, verified against
+  the official RFC 6238/4226 test vectors 287082 / 081804 / 005924). Every account is enrolled
+  with a TOTP secret; login step 2 verifies the code against the user's secret (±1 step window,
+  timing-safe). Demo mode displays the current code with a live 30s rotation countdown and
+  auto-refresh; the same code verifies in any authenticator app via the `otpauth://` URI
+  (`GET /api/auth/mfa/setup`).
+- **Revocable + refreshable sessions** — sessions carry sid/gen, HMAC-signed tokens; logout and
+  SENTINEL/admin termination perform REAL server-side revocation; `POST /api/auth/refresh`
+  rotates tokens (retiring the previous one — enforced incl. the stateless fallback);
+  `/api/auth/revoke-all` and admin revoke-all; password changes/resets sign out other sessions;
+  absolute 72h session cap.
+- **Password reset & change** — enumeration-safe request flow (signed 15-min tokens; demo shows
+  the code), strong-password policy (≥8 chars, letters+digits) enforced on reset, change,
+  admin-set and user creation; self-service change requires the current password and keeps only
+  the current session.
+- **Central rate limiting (AUTH-03)** — policy registry (`server/lib/ratelimit.js`): login/mfa/
+  pwreset/api budgets with cooldown lockouts, viewable & adjustable via
+  `GET/PATCH /api/admin/ratelimit` and the SENTINEL ADJUST_RATE_LIMIT action (real effect);
+  brute-force 429 verified; Redis-swap boundary documented.
+- **SENTINEL identity is now REAL (spec §14/§15/§56)** — `/api/sentinel/identity` reports live
+  auth telemetry (attempts, failures, MFA events, resets, session counts, new devices, hourly
+  series), REAL session rows with risk flags, dormant accounts, and MFA coverage computed from
+  enrollment. Session termination from SENTINEL revokes the real token.
+- **Step-up authentication (spec §16/§48)** — HIGH/CRITICAL SENTINEL actions and break-glass
+  require a fresh TOTP code (`STEPUP_REQUIRED`/`STEPUP_INVALID`); the UI provides a
+  "USE MY CURRENT CODE" helper. LOW/MEDIUM actions unchanged.
+- Client: TOTP countdown UI, demo-code auto-refresh, forgot-PIN reset flow on /login, sliding
+  token refresh in boot, admin users tab (TOTP status, last login, revoke sessions, policy hints).
+
+**Verification:** `mfa-test.js` 63 checks · real-browser review 9/9 (TOTP login→routing, step-up
+modal + fill, reset flow, credential restore) · full runner 13/13 suites (~700 checks) · lint +
+secret-scan clean.
+
 ## Next milestones (awaiting authorization)
 
-- **M2 Identity & Access:** real MFA (TOTP/WebAuthn), session revocation/refresh, password
-  reset, central rate limiting, complete auth lifecycle (AUTH-01/02/03).
 - **M3 Database:** PostgreSQL/PostGIS per `docs/schema.sql`, retention enforcement (DB-01..04, PRIV-01).
 - **M4 Evidence · M5 Field/Offline · M6 Verification · M7 Command · M8 SENTINEL · M9 Analytics ·
   M10 Public Transparency · M11 Security & Resilience · M12 Production** (see M0 report §41).

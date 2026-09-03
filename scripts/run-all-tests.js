@@ -8,7 +8,7 @@ const ROOT = path.join(__dirname, '..');
 const BASE = 'http://localhost:3000';
 
 const SUITES = [
-  'apitest', 'security-test', 'e2e', 'agent-test', 'lg-test', 'senatorial-test',
+  'apitest', 'security-test', 'mfa-test', 'e2e', 'agent-test', 'lg-test', 'senatorial-test',
   'central20-test', 'irev-test', 'public-test', 'login-test', 'sentinel-test', 'serverless-check',
 ];
 
@@ -39,8 +39,24 @@ async function healthy() {
     console.log('test server up');
   }
 
+  // deterministic runs: clear the central rate-limit buckets before each suite
+  // (tests share one IP; the per-IP policies would otherwise flake across suites)
+  let adminToken = null; // cached across resets — reset itself must not add login traffic
+  async function resetRateBuckets() {
+    try {
+      if (!adminToken) {
+        const l = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'superadmin', password: 'Admin@123!' }) }).then(r => r.json());
+        const m = await fetch(BASE + '/api/auth/mfa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challenge: l.challenge, code: l.mfaCode }) }).then(r => r.json());
+        adminToken = m.token;
+      }
+      const res = await fetch(BASE + '/api/admin/ratelimit/reset', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: '{}' });
+      if (res.status === 401) adminToken = null; // token invalidated — re-login next time
+    } catch (e) { /* best-effort */ }
+  }
+
   const results = [];
   for (const suite of SUITES) {
+    await resetRateBuckets();
     process.stdout.write(`\n===== ${suite} =====\n`);
     const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', suite + '.js')], {
       cwd: ROOT, stdio: ['inherit', 'inherit', 'inherit'], timeout: 10 * 60 * 1000,

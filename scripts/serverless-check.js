@@ -41,6 +41,10 @@ async function login(u, p) {
     ok('P0-01: serverless boot fails closed without SESSION_SECRET', /ERR:SESSION_SECRET_REQUIRED/.test(out), out.trim().slice(0, 80));
   }
 
+  // Vercel has no persisted state file — remove any local snapshot so the harness
+  // exercises the true cold-start path (deterministic seed from SESSION_SECRET).
+  try { require('fs').rmSync(path.join(ROOT, 'data', 'state.json'), { force: true }); } catch (e) {}
+
   boot(); // simulate Vercel cold start boot (idempotent — the handler calls it too)
   const server = http.createServer((q, s) => { handleRequest(q, s).catch(e => { console.error('handler error', e); s.writeHead(500); s.end('error'); }); });
   await new Promise(r => server.listen(PORT, '127.0.0.1', r));
@@ -100,8 +104,11 @@ async function login(u, p) {
   ok('per-instance mutations work (alert ack)', ack && ack.ok === true && ack.alert.status === 'ACK');
 
   const secDirector = await login('secdirector', 'SecDir@123!');
-  const actionReq = j(await req('POST', '/api/sentinel/actions/request', { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secDirector.token }, { action: 'ISOLATE_NODE', target: 'NODE-0011', detail: 'serverless test' }));
-  ok('action request flow works', actionReq && actionReq.action && actionReq.action.status === 'REQUESTED' && actionReq.action.approval === 'SINGLE');
+  const secSetup = j(await req('GET', '/api/auth/mfa/setup', { Authorization: 'Bearer ' + secDirector.token }));
+  const noStep = j(await req('POST', '/api/sentinel/actions/request', { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secDirector.token }, { action: 'ISOLATE_NODE', target: 'NODE-0011', detail: 'serverless test' }));
+  ok('HIGH action without step-up rejected (M2 §16)', noStep && noStep.error === 'STEPUP_REQUIRED', noStep ? JSON.stringify(noStep).slice(0, 80) : 'null');
+  const actionReq = j(await req('POST', '/api/sentinel/actions/request', { 'Content-Type': 'application/json', Authorization: 'Bearer ' + secDirector.token }, { action: 'ISOLATE_NODE', target: 'NODE-0011', detail: 'serverless test', stepupCode: secSetup.currentCode }));
+  ok('action request flow works (with step-up)', actionReq && actionReq.action && actionReq.action.status === 'REQUESTED' && actionReq.action.approval === 'SINGLE');
 
   // ---- simulate a FULL cold start: wipe all state and re-seed (new instance) ----
   console.log('== COLD START (full wipe + re-seed, new instance) ==');

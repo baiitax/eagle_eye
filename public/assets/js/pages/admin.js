@@ -68,10 +68,11 @@
 
   function rUsers() {
     const wrap = el(`<div class="panel"><div class="ph"><span class="t">USER MANAGEMENT</span><span class="sp"></span><button class="btn primary sm" id="newuser">＋ Create user</button></div>
-    <div class="pb flat"><table class="tbl"><tr><th>Username</th><th>Name</th><th>Role</th><th>Scope</th><th>Status</th><th>MFA</th><th></th></tr>
+    <div class="pb flat"><table class="tbl"><tr><th>Username</th><th>Name</th><th>Role</th><th>Scope</th><th>Status</th><th>MFA</th><th>Last login</th><th></th></tr>
     ${bootstrap.users.map(u => `<tr><td class="mono">${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(u.roleName)}</td><td class="small muted">${u.scope ? esc(u.scope.lga || u.scope.senatorial || '') : 'statewide'}</td>
     <td>${u.status === 'ACTIVE' ? '<span class="badge s-verified">ACTIVE</span>' : '<span class="badge s-rejected">DISABLED</span>'}</td>
-    <td>${u.mfa ? '✓' : '—'}</td>
+    <td>${u.totpEnrolled ? '<span class="badge s-verified">TOTP</span>' : (u.mfa ? '✓' : '—')}</td>
+    <td class="small muted">${u.lastLoginAt ? fmtWatShort(u.lastLoginAt) : 'never'}</td>
     <td><button class="btn sm" data-edit="${u.id}">Manage</button></td></tr>`).join('')}
     </table></div></div>`);
     shell.main.appendChild(wrap);
@@ -99,12 +100,18 @@
       const m = modal({
         title: `Manage ${u.username}`,
         body: () => el(`<div>
-          <div class="small muted mb12">${esc(u.name)} · ${esc(u.roleName)}</div>
+          <div class="small muted mb12">${esc(u.name)} · ${esc(u.roleName)} · ${u.totpEnrolled ? 'TOTP MFA enrolled' : 'no TOTP'}</div>
           <label class="fl">Status</label><select class="inp" id="ust"><option value="ACTIVE" ${u.status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option><option value="DISABLED" ${u.status === 'DISABLED' ? 'selected' : ''}>DISABLED</option></select>
           <label class="fl">Role</label><select class="inp" id="url">${bootstrap.roles.map(r => `<option value="${r.id}" ${r.id === u.roleId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
-          <label class="fl">Reset password (optional)</label><input class="inp" id="upw" type="text" placeholder="new password">
+          <label class="fl">Reset password (optional)</label><input class="inp" id="upw" type="text" placeholder="min 8 chars · letters + numbers">
+          <div class="small dim mt4">Password changes sign the user out of all sessions (M2).</div>
+          <div class="row mt8"><button class="btn sm warn" id="urevoke">⛔ REVOKE ALL SESSIONS</button></div>
         </div>`),
         actions: [{ label: 'Cancel', cls: 'ghost' }, { label: 'Save', cls: 'primary', onClick: async () => {
+          $('#urevoke', m.body).onclick = async () => {
+            const r = await API.post('/api/admin/users/' + u.id + '/revoke-sessions', {});
+            toast('Sessions revoked', `${r.revoked} session(s) signed out — audited.`);
+          };
           const body = { status: $('#ust').value, roleId: $('#url').value };
           if ($('#upw').value) body.password = $('#upw').value;
           await API.patch(`/api/admin/users/${u.id}`, body);

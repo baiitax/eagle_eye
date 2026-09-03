@@ -18,6 +18,31 @@ node server/server.js       # → http://localhost:3000  (zero runtime dependenc
 
 First boot seeds everything and loads the **Collation Phase (27 Feb 2027, 16:20 WAT)** scenario at 30× speed. Switch scenarios from the central header dropdown, **Admin → Simulation Control**, or `POST /api/admin/simulation {action:'reset'}` for a full reset.
 
+## M2 Identity & Access (2026-09-01)
+
+Post-audit M2 delivered — real authentication security across the platform:
+
+- **Real TOTP MFA (RFC 6238)** — every account is enrolled with a TOTP secret; the login OTP is
+  a genuine time-based code (verified against the official RFC test vectors) with a live 30s
+  rotation countdown and demo auto-refresh; the `otpauth://` URI works in real authenticator apps.
+- **Revocable & refreshable sessions** — logout, SENTINEL/admin termination and password changes
+  perform real server-side revocation; `POST /api/auth/refresh` rotates tokens (the previous one
+  is retired); absolute 72h cap; `/api/auth/revoke-all` signs out other devices.
+- **Password reset & change** — enumeration-safe reset flow with signed 15-minute tokens and a
+  strong-password policy (min 8 chars, letters + numbers) enforced everywhere a password is set;
+  reset/change signs out all other sessions. Forgot-PIN on `/login` runs the real flow.
+- **Central rate limiting** — policy registry for login / MFA / password-reset / general API
+  budgets with cooldown lockouts; view & adjust via Admin → `/api/admin/ratelimit` or the
+  SENTINEL ADJUST_RATE_LIMIT action (real effect). Brute-force returns 429 (tested).
+- **SENTINEL identity is LIVE** (spec §14/§15/§56) — the SOC identity tab now reports real
+  auth telemetry, real session rows with risk flags, dormant accounts and MFA coverage instead
+  of seeded fiction; terminating a session from SENTINEL revokes the actual token.
+- **Step-up authentication** (spec §16/§48) — HIGH/CRITICAL SENTINEL actions and break-glass
+  require a fresh TOTP code, with a "USE MY CURRENT CODE" helper in the UI.
+
+New tests: `scripts/mfa-test.js` (63 checks) · real-browser M2 review (9/9) · full runner now
+13 suites (~700 checks) · lint + secret scan still clean.
+
 ## M1 Foundation — security hardening & CI (2026-09-01)
 
 Post-audit hardening delivered in this release:

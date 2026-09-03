@@ -15,6 +15,7 @@ const reports = require('./lib/reports');
 const copilot = require('./lib/copilot');
 const irev = require('./lib/irev');
 const sentinel = require('./lib/sentinel');
+const limiter = require('./lib/ratelimit');
 const fmtWat = util.fmtWat;
 
 const PORT = process.env.PORT || 3000;
@@ -354,16 +355,70 @@ route('GET', /^\/api\/public\/updates$/, (req, res) => {
   sendJson(res, 200, { updates: rel, disclaimer: 'Simulated feed of verification milestones.' });
 });
 
-// --- auth ---
+// --- auth (M2: real TOTP MFA, revocable sessions, password reset, central limits) ---
 route('POST', /^\/api\/auth\/login$/, (req, res, body) => {
-  if (auth.rateLimit(req, res, { windowMs: 60000, max: 20, key: 'login' })) return sendJson(res, 429, { error: 'RATE_LIMITED', message: 'Too many sign-in attempts. Please wait a moment and try again.' });
+  if (limiter.httpGuard(req, res, 'login')) return;
   return auth.loginStep1(req, res, body);
 });
-route('POST', /^\/api\/auth\/mfa$/, (req, res, body) => auth.loginStep2(req, res, body));
+route('POST', /^\/api\/auth\/mfa$/, (req, res, body) => {
+  if (limiter.httpGuard(req, res, 'mfa')) return;
+  return auth.loginStep2(req, res, body);
+});
+// demo helper: current TOTP code for an in-flight challenge (client countdown refresh)
+route('POST', /^\/api\/auth\/mfa\/code$/, (req, res, body) => {
+  const st = S();
+  if (!st.config.demoMode) return sendJson(res, 403, { error: 'DEMO_ONLY' });
+  const parsed = auth.verifyChallenge(body.challenge || '');
+  if (!parsed) return sendJson(res, 400, { error: 'CHALLENGE_EXPIRED' });
+  const user = st.users.find(u => u.id === parsed.userId);
+  if (!user) return sendJson(res, 400, { error: 'CHALLENGE_EXPIRED' });
+  sendJson(res, 200, { mfaCode: require('./lib/totp').totpCode(user.totpSecret), rotatesInSec: require('./lib/totp').secondsToRotation() });
+});
 route('POST', /^\/api\/auth\/logout$/, (req, res) => {
   const u = auth.currentUser(req);
-  if (u) { delete S().sessions[u.sessionToken]; audit(u, 'LOGOUT', 'session', u.sessionToken.slice(0, 8), '', req); }
+  if (u && u.sessionId) { auth.revokeSession(u.sessionId, u); audit(u, 'LOGOUT', 'session', u.sessionId.slice(0, 8), '', req); }
   sendJson(res, 200, { ok: true });
+});
+route('POST', /^\/api\/auth\/refresh$/, (req, res) => {
+  const r = auth.refreshSession(req);
+  if (r.error) return sendJson(res, r.error === 'UNAUTHENTICATED' ? 401 : 400, r);
+  sendJson(res, 200, r);
+});
+route('GET', /^\/api\/auth\/sessions$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u) return sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  sendJson(res, 200, { rows: auth.listSessions(u.id) });
+});
+route('POST', /^\/api\/auth\/sessions\/([^/]+)\/revoke$/, (req, res, body, m) => {
+  const u = auth.currentUser(req);
+  if (!u) return sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const st = S();
+  const rec = st.sessions[m[1]];
+  if (!rec) return sendJson(res, 404, { error: 'NOT_FOUND' });
+  if (rec.userId !== u.id && !auth.can(u, 'security.respond') && !auth.can(u, 'admin.users')) return sendJson(res, 403, { error: 'FORBIDDEN' });
+  auth.revokeSession(m[1], u);
+  audit(u, 'SESSION_REVOKED', 'session', m[1], 'via /api/auth/sessions/:id/revoke', req);
+  sendJson(res, 200, { ok: true });
+});
+route('POST', /^\/api\/auth\/revoke-all$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u) return sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const n = auth.revokeAllExcept(u.id, u.sessionId); // keep THIS session; sign out everywhere else
+  audit(u, 'SESSIONS_REVOKED_OTHER', 'user', u.id, `${n} other session(s) signed out`, req);
+  sendJson(res, 200, { ok: true, revoked: n });
+});
+route('POST', /^\/api\/auth\/change-password$/, (req, res, body) => auth.changePassword(req, res, body));
+route('POST', /^\/api\/auth\/password-reset\/request$/, (req, res, body) => {
+  if (limiter.httpGuard(req, res, 'pwreset', auth.clientIp(req) + '|' + String(body.username || '').toLowerCase().slice(0, 40))) return;
+  return auth.requestPasswordReset(req, res, body);
+});
+route('POST', /^\/api\/auth\/password-reset\/complete$/, (req, res, body) => auth.completePasswordReset(req, res, body));
+route('GET', /^\/api\/auth\/mfa\/setup$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u) return sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const st = S();
+  const user = st.users.find(x => x.id === u.id);
+  sendJson(res, 200, auth.mfaSetup(user));
 });
 route('GET', /^\/api\/me$/, (req, res) => {
   const u = auth.currentUser(req);
@@ -383,7 +438,7 @@ route('GET', /^\/api\/bootstrap$/, (req, res) => {
     pus: st.pus.map(p => ({ id: p.id, name: p.name, wardId: p.wardId, lgaId: p.lgaId, lat: p.lat, lon: p.lon, x: p.x, y: p.y })),
     senatorial: st.senatorial,
     elections: st.elections, candidates: st.candidates, parties: st.parties,
-    config: st.config, users: auth.can(u, 'admin.users') ? st.users.map(x => ({ id: x.id, username: x.username, name: x.name, roleId: x.roleId, status: x.status, scope: x.scope, phone: x.phone })) : [],
+    config: st.config, users: auth.can(u, 'admin.users') ? st.users.map(x => auth.publicUser(x)) : [],
     roles: auth.can(u, 'admin.roles') ? st.roles : [],
     agents: auth.can(u, 'agents.view') ? st.agents.map(a => ({ id: a.id, code: a.code, name: a.name, puId: a.puId, lgaId: a.lgaId, dutyState: a.dutyState, online: a.online })) : [],
   });
@@ -1099,7 +1154,9 @@ route('POST', /^\/api\/admin\/users$/, (req, res, body) => {
   const st = S();
   if (!body.username || !body.password || !body.roleId) return sendJson(res, 400, { error: 'BAD_BODY' });
   if (st.users.some(x => x.username === body.username)) return sendJson(res, 409, { error: 'EXISTS' });
-  const nu = { id: util.uuid(), username: body.username, name: body.name || body.username, roleId: body.roleId, scope: body.scope || {}, passwordHash: util.hashPassword(body.password), mfa: true, status: 'ACTIVE', phone: body.phone || '', createdAt: Date.now() };
+  const policyErr = auth.passwordPolicyError(body.password);
+  if (policyErr) return sendJson(res, 400, { error: 'WEAK_PASSWORD', message: policyErr });
+  const nu = { id: util.uuid(), username: body.username, name: body.name || body.username, roleId: body.roleId, scope: body.scope || {}, passwordHash: util.hashPassword(body.password), mfa: true, mfaType: 'TOTP', totpSecret: require('./lib/totp').generateSecret(), status: 'ACTIVE', phone: body.phone || '', createdAt: Date.now(), lastLoginAt: null, loginCount: 0, failedLoginCount: 0, lastFailedAt: null, sessionsInvalidatedAt: 0, passwordChangedAt: Date.now() };
   st.users.push(nu);
   audit(u, 'USER_CREATED', 'user', nu.id, nu.username, req);
   set(() => {});
@@ -1115,12 +1172,70 @@ route('PATCH', /^\/api\/admin\/users\/([^/]+)$/, (req, res, body, m) => {
   if (body.status) { if (t.status !== body.status) changes.push(`status ${t.status}→${body.status}`); t.status = body.status; }
   if (body.roleId) { if (t.roleId !== body.roleId) changes.push(`role ${t.roleId}→${body.roleId}`); t.roleId = body.roleId; }
   if (body.scope) t.scope = body.scope;
-  if (body.password) t.passwordHash = util.hashPassword(body.password);
-  if (t.status === 'DISABLED') { for (const [tk, s] of Object.entries(st.sessions)) if (s.userId === t.id) delete st.sessions[tk]; }
+  if (body.password) {
+    const policyErr = auth.passwordPolicyError(body.password);
+    if (policyErr) return sendJson(res, 400, { error: 'WEAK_PASSWORD', message: policyErr });
+    t.passwordHash = util.hashPassword(body.password);
+    t.passwordChangedAt = Date.now();
+    auth.revokeAllSessions(t.id, u); // password change signs out every session (M2)
+    changes.push('password reset');
+  }
+  if (body.roleId && body.roleId !== t.roleId) auth.bump('privilegeChanges');
+  if (t.status === 'DISABLED') auth.revokeAllSessions(t.id, u);
   audit(u, 'USER_UPDATED', 'user', t.id, `${t.username} — ${changes.join(', ')}`, req);
   set(() => {});
   sendJson(res, 200, auth.publicUser(t));
 });
+route('POST', /^\/api\/admin\/users\/([^/]+)\/password$/, (req, res, body, m) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.users')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const st = S();
+  const t = st.users.find(x => x.id === m[1]);
+  if (!t) return sendJson(res, 404, { error: 'NOT_FOUND' });
+  const policyErr = auth.passwordPolicyError(body.newPassword);
+  if (policyErr) return sendJson(res, 400, { error: 'WEAK_PASSWORD', message: policyErr });
+  t.passwordHash = util.hashPassword(body.newPassword);
+  t.passwordChangedAt = Date.now();
+  auth.revokeAllSessions(t.id, u);
+  auth.bump('passwordResets');
+  audit(u, 'ADMIN_PASSWORD_RESET', 'user', t.id, t.username, req);
+  set(() => {});
+  sendJson(res, 200, { ok: true, message: 'Password set. All sessions for this user were signed out.' });
+});
+route('POST', /^\/api\/admin\/users\/([^/]+)\/revoke-sessions$/, (req, res, body, m) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.users')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const st = S();
+  const t = st.users.find(x => x.id === m[1]);
+  if (!t) return sendJson(res, 404, { error: 'NOT_FOUND' });
+  const n = auth.revokeAllSessions(t.id, u);
+  audit(u, 'ADMIN_SESSIONS_REVOKED', 'user', t.id, `${n} session(s)`, req);
+  set(() => {});
+  sendJson(res, 200, { ok: true, revoked: n });
+});
+// central rate-limit policies (AUTH-03): view + adjust, fully audited
+route('POST', /^\/api\/admin\/ratelimit\/reset$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  limiter.clearBuckets();
+  audit(u, 'RATE_LIMIT_BUCKETS_RESET', 'ratelimit', null, 'all buckets cleared', req);
+  sendJson(res, 200, { ok: true });
+});
+route('GET', /^\/api\/admin\/ratelimit$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  sendJson(res, 200, limiter.snapshot());
+});
+route('PATCH', /^\/api\/admin\/ratelimit$/, (req, res, body) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  if (!body.key) return sendJson(res, 400, { error: 'BAD_BODY' });
+  const before = JSON.stringify(limiter.policyOf(body.key));
+  const pol = limiter.setPolicy(body.key, { max: body.max, windowMs: body.windowMs, cooldownMs: body.cooldownMs });
+  audit(u, 'RATE_LIMIT_ADJUSTED', 'ratelimit', body.key, `${before} → ${JSON.stringify(pol)}`, req);
+  sendJson(res, 200, pol);
+});
+
 route('PATCH', /^\/api\/admin\/roles\/([^/]+)$/, (req, res, body, m) => {
   const u = auth.currentUser(req);
   if (!u || !auth.can(u, 'admin.roles')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
@@ -2951,29 +3066,42 @@ route('GET', /^\/api\/sentinel\/public$/, (req, res) => {
 route('GET', /^\/api\/sentinel\/identity$/, (req, res) => {
   const u = secUser(req, res);
   if (!u) return;
-  const sec = sentinel.cfg();
   const st = S();
-  const mfaCoverage = st.users.length ? Math.round(st.users.filter(x => x.mfa).length / st.users.length * 100) : 100;
+  // REAL identity telemetry (M2): counters, sessions and risk signals come from the
+  // live auth subsystem — SENTINEL §14/§15 are no longer simulated.
+  const tel = auth.telemetry();
+  const sessions = auth.listSessions().map(x => {
+    const user = st.users.find(y => y.username === x.user);
+    const privActions = st.audit.filter(a => a.username === x.user && /SECURITY_ACTION|SESSION_REVOKED|BREAK_GLASS/.test(a.action)).length;
+    const risk = user && (user.failedLoginCount || 0) >= 3 ? 'ELEVATED' : 'NORMAL';
+    return { ...x, privilegedActions: privActions, riskStatus: risk, riskNote: risk === 'ELEVATED' ? 'Failed logins recorded against this account' : null };
+  });
+  const dormant = st.users.filter(x => !x.lastLoginAt).slice(0, 6).map(x => x.username);
+  const suspiciousSessions = sessions.filter(x => x.riskStatus === 'ELEVATED').length;
   sendJson(res, 200, {
-    ...sec.identity,
-    sessions: sec.sessions,
-    mfaCoverage,
+    loginAttempts: tel.loginAttempts, failedLogins: tel.failedLogins, mfaEvents: tel.mfaEvents,
+    passwordResets: tel.passwordResets, sessionsCreated: tel.sessionsCreated,
+    sessionsTerminated: tel.sessionsTerminated, privilegeChanges: tel.privilegeChanges,
+    newDevices: tel.newDevices, suspiciousSessions,
+    dormantAccounts: dormant.length,
+    series: tel.hourly.map(h => ({ at: h.at, logins: h.logins, failures: h.failures })),
+    sessions, mfaCoverage: auth.mfaCoverage(),
     activePlatformSessions: Object.keys(st.sessions).length,
-    dormantAccountNames: ['observer.legacy.01', 'support.legacy.02', 'temp.analyst.03'],
+    dormantAccountNames: dormant,
+    source: 'LIVE AUTH SUBSYSTEM',
   });
 });
 route('POST', /^\/api\/sentinel\/sessions\/([^/]+)\/terminate$/, (req, res, body, m) => {
   const u = secUser(req, res, 'security.respond');
   if (!u) return;
-  const sec = sentinel.cfg();
-  const s = sec.sessions.find(x => x.id === m[1]);
-  if (!s) return sendJson(res, 404, { error: 'NOT_FOUND' });
-  const r = sentinel.requestAction(u, 'DISABLE_SESSION', m[1], 'Session terminated by security operator');
-  if (r.error) return sendJson(res, 403, r);
-  s.active = false; s.terminatedAt = S().meta.simNow || Date.now();
-  audit(u, 'SECURITY_SESSION_TERMINATED', 'session', m[1], `${s.user} (${s.role})`, req);
-  set(() => {});
-  sendJson(res, 200, { ok: true, session: s });
+  const st = S();
+  const rec = st.sessions[m[1]];
+  if (!rec) return sendJson(res, 404, { error: 'NOT_FOUND' });
+  const target = st.users.find(x => x.id === rec.userId);
+  // REAL revocation (M2): the session is invalidated in the auth subsystem.
+  auth.revokeSession(m[1], u);
+  audit(u, 'SECURITY_SESSION_TERMINATED', 'session', m[1], `${target ? target.username : rec.userId}`, req);
+  sendJson(res, 200, { ok: true, session: { id: m[1], active: false, user: target ? target.username : rec.userId } });
 });
 
 // ---- network + TLS (§40/41) ----
@@ -3093,7 +3221,7 @@ route('GET', /^\/api\/sentinel\/actions$/, (req, res) => {
 route('POST', /^\/api\/sentinel\/actions\/request$/, (req, res, body) => {
   const u = secUser(req, res, 'security.respond');
   if (!u) return;
-  const r = sentinel.requestAction(u, String(body.action || ''), String(body.target || ''), String(body.detail || ''));
+  const r = sentinel.requestAction(u, String(body.action || ''), String(body.target || ''), String(body.detail || ''), { stepupCode: body.stepupCode });
   if (r.error) return sendJson(res, r.error === 'FORBIDDEN' ? 403 : 400, r);
   sendJson(res, 200, r);
 });
@@ -3132,7 +3260,8 @@ route('POST', /^\/api\/sentinel\/breakglass\/open$/, (req, res, body) => {
   if (!u) return;
   const reason = String(body.reason || '').trim();
   if (reason.length < 10) return sendJson(res, 400, { error: 'REASON_REQUIRED', message: 'A clear reason (min 10 characters) is mandatory for emergency access.' });
-  const r = sentinel.openBreakGlass(u, reason, String(body.incidentId || 'none'), body.minutes || 30);
+  const r = sentinel.openBreakGlass(u, reason, String(body.incidentId || 'none'), body.minutes || 30, { stepupCode: body.stepupCode });
+  if (r.error) return sendJson(res, 400, r);
   sendJson(res, 200, r);
 });
 route('POST', /^\/api\/sentinel\/breakglass\/close$/, (req, res, body) => {
@@ -3450,7 +3579,7 @@ async function handleRequest(req, res) {
   }
 
   if (pathname.startsWith('/api/')) {
-    if (auth.rateLimit(req, res, { windowMs: 60000, max: 600 })) return sendJson(res, 429, { error: 'RATE_LIMITED', message: 'Too many requests. Please wait a moment and try again.' });
+    if (limiter.httpGuard(req, res, 'api')) return;
     let body = {};
     if (['POST', 'PATCH', 'PUT'].includes(req.method)) {
       try { body = await readBody(req); } catch (e) { return sendJson(res, 400, { error: e.message }); }

@@ -52,6 +52,8 @@ function freshState() {
     },
     // SENTINEL SOC — populated/upgraded lazily by server/lib/sentinel.js ensureInitialized()
     security: null,
+    authTelemetry: { loginAttempts: 0, failedLogins: 0, mfaEvents: 0, mfaFailures: 0, passwordResets: 0, sessionsCreated: 0, sessionsTerminated: 0, privilegeChanges: 0, newDevices: 0, hourly: [] },
+    ratePolicy: null, rateBuckets: {}, revokedSids: {}, sessionTokens: {}, userDevices: {},
     audit: [], publicReleases: [], systemEvents: [],
     seq: { submission: 0, incident: 0, sos: 0, evidence: 0, escalation: 0, irevObs: 0, irevCase: 0, irevAlert: 0, task: 0, sitrep: 0, secEvent: 0, secAlert: 0, secCase: 0, secApr: 0 },
     systemHealth: {

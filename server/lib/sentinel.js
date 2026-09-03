@@ -646,11 +646,20 @@ function canApprove(user) {
   return role?.permissions.includes('security.privileged') || user.roleId === 'superadmin' || user.roleId === 'secdirector';
 }
 
-function requestAction(user, action, target, detail = '') {
+function requestAction(user, action, target, detail = '', opts = {}) {
   const sec = cfg();
   const def = actionRisk(action);
   if (def.error) return def;
   if (!canRequest(user, action)) return { error: 'FORBIDDEN' };
+  // STEP-UP AUTHENTICATION (§16): HIGH/CRITICAL actions require a fresh TOTP code.
+  if (['HIGH', 'CRITICAL'].includes(def.risk)) {
+    if (!opts.stepupCode) return { error: 'STEPUP_REQUIRED', message: 'High-risk actions require step-up authentication. Provide your current TOTP code as stepupCode.' };
+    const authMod = require('./auth');
+    if (!authMod.verifyStepup(user, opts.stepupCode)) {
+      authMod.bump('mfaFailures');
+      return { error: 'STEPUP_INVALID', message: 'Step-up code invalid. A fresh 6-digit TOTP code is required for this action.' };
+    }
+  }
   const now = S().meta.simNow || Date.now();
   const req = {
     id: uuid(), code: nextCode(S(), 'secApr'), action, actionLabel: def.label, target, detail,
@@ -821,7 +830,14 @@ function applyEffect(action, target, detail, before) {
     case 'DISABLE_SESSION': { const s = sec.sessions.find(x => x.id === target); if (s) { s.active = false; s.terminatedAt = S().meta.simNow || Date.now(); } break; }
     case 'RUN_HEALTH_CHECK': if (n) { n.lastCheck = S().meta.simNow || Date.now(); n.processHealth = 100; } break;
     case 'RUN_VULN_SCAN': sec.lastScan = S().meta.simNow || Date.now(); sec.lastScanLabel = fmtWat(sec.lastScan).split(' ')[1]; break;
-    case 'ADJUST_RATE_LIMIT': { const v = parseInt(detail, 10); if (!Number.isFinite(v)) return { error: 'BAD_VALUE' }; sec.rateLimitConfig.requestsPerSec = v; break; }
+    case 'ADJUST_RATE_LIMIT': {
+      const v = parseInt(detail, 10);
+      if (!Number.isFinite(v)) return { error: 'BAD_VALUE' };
+      sec.rateLimitConfig.requestsPerSec = v;
+      // REAL effect (M2): the central rate-limit policy is adjusted live
+      require('./ratelimit').setPolicy('api', { max: v });
+      break;
+    }
     case 'ENABLE_MAINTENANCE': sec.rateLimitConfig.maintenanceMode = true; break;
     case 'ROLLBACK_ENABLE_MAINTENANCE': sec.rateLimitConfig.maintenanceMode = false; break;
     case 'RATE_LIMIT_SOURCE': sec.public.rateLimitSources.push({ source: detail || target, at: S().meta.simNow || Date.now(), minutes: 30, by: 'SECURITY ACTION' }); break;
@@ -835,8 +851,14 @@ function applyEffect(action, target, detail, before) {
 }
 
 // ---------------- break-glass (§48) ----------------
-function openBreakGlass(user, reason, incidentId, minutes = 30) {
+function openBreakGlass(user, reason, incidentId, minutes = 30, opts = {}) {
   const sec = cfg();
+  const authMod = require('./auth');
+  if (!opts.stepupCode) return { error: 'STEPUP_REQUIRED', message: 'Emergency access requires strong (step-up) authentication. Provide your current TOTP code as stepupCode.' };
+  if (!authMod.verifyStepup(user, opts.stepupCode)) {
+    authMod.bump('mfaFailures');
+    return { error: 'STEPUP_INVALID', message: 'Step-up code invalid. A fresh 6-digit TOTP code is required for emergency access.' };
+  }
   const now = S().meta.simNow || Date.now();
   const bg = {
     id: uuid(), code: nextCode(S(), 'secApr'), userId: user.id, user: user.name, reason, incidentId,

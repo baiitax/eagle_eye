@@ -118,6 +118,11 @@ function requestActionModal(action, target, detail) {
     </div>
     <label class="fl">Reason / justification (required for HIGH & CRITICAL)</label>
     <textarea class="inp" id="apr-detail" style="min-height:64px;width:100%" placeholder="Why is this action required right now?"></textarea>
+    <div id="apr-stepup" style="display:none;margin-top:8px">
+      <label class="fl" style="color:#fbbf24">STEP-UP AUTHENTICATION — required for HIGH/CRITICAL actions (§16)</label>
+      <div class="row"><input class="inp" id="apr-code" placeholder="6-digit TOTP code" style="flex:1"><button class="btn sm" id="apr-fillcode">USE MY CURRENT CODE</button></div>
+      <div class="dim small mt4">Your current authenticator code proves it is really you before a high-risk action is requested.</div>
+    </div>
     <div class="small dim mt8">Every action is written to the append-only security audit: WHO · WHAT · WHEN · WHERE · TARGET · BEFORE · AFTER · WHY · APPROVAL · RESULT.</div>
   </div>`);
   const impactOf = (act, tgt) => {
@@ -127,7 +132,11 @@ function requestActionModal(action, target, detail) {
   function refreshPreview() {
     const i = $('#apr-impact'); if (i) i.textContent = impactOf(action, target);
     const meta = $('#apr-meta');
-    if (meta && catalog && catalog[action]) meta.innerHTML = `${secRisk(catalog[action].risk)} · Reversible: ${catalog[action].reversible ? 'YES' : 'NO'} · Approval: ${catalog[action].approval === 'NONE' ? 'NOT REQUIRED (audited)' : catalog[action].approval}`;
+    if (meta && catalog && catalog[action]) {
+      meta.innerHTML = `${secRisk(catalog[action].risk)} · Reversible: ${catalog[action].reversible ? 'YES' : 'NO'} · Approval: ${catalog[action].approval === 'NONE' ? 'NOT REQUIRED (audited)' : catalog[action].approval}`;
+      const su = $('#apr-stepup', m.body);
+      if (su) su.style.display = ['HIGH', 'CRITICAL'].includes(catalog[action].risk) ? 'block' : 'none';
+    }
   }
   const m = modal({
     title: 'SECURITY ACTION CENTRE — request action',
@@ -138,8 +147,9 @@ function requestActionModal(action, target, detail) {
         label: 'REQUEST APPROVAL →', cls: 'primary',
         onClick: async () => {
           const detailTxt = $('#apr-detail', m.body)?.value?.trim() || '';
+          const stepup = $('#apr-code', m.body)?.value?.trim() || '';
           try {
-            const r = await API.post('/api/sentinel/actions/request', { action, target, detail: detailTxt });
+            const r = await API.post('/api/sentinel/actions/request', { action, target, detail: detailTxt, stepupCode: stepup });
             if (r.requiresApproval) toast('Action requested', `${r.action.actionLabel} on ${target} — awaiting ${r.action.approval} approval.`, 'medium');
             else toast('Action executed', `${r.action.actionLabel} on ${target} — logged to the immutable audit.`);
             m.close();
@@ -149,6 +159,16 @@ function requestActionModal(action, target, detail) {
       },
     ],
   });
+  const fillBtn = $('#apr-fillcode', m.body);
+  if (fillBtn) fillBtn.onclick = async () => {
+    try {
+      const setup = await API.get('/api/auth/mfa/setup');
+      if (setup && setup.currentCode) {
+        $('#apr-code', m.body).value = setup.currentCode;
+        toast('Step-up code filled', 'Using your current TOTP code (demo).');
+      }
+    } catch (e) { toast('Could not fetch code', e.message, 'critical'); }
+  };
 }
 
 // ---------------- modal: security case (§21/22/52/53) ----------------
@@ -1116,24 +1136,34 @@ async function renderActionsTab(main) {
     </div></div>`));
   $$('[data-req]', main).forEach(b => b.onclick = () => {
     const def = cat.catalog[b.dataset.req];
+    const needsStepup = ['HIGH', 'CRITICAL'].includes(def.risk);
     const m = modal({
       title: `REQUEST ACTION — ${def.label}`,
       body: () => el(`<div class="small" style="line-height:1.8">
         <label class="fl">Target</label><input class="inp" id="req-target" style="width:100%" placeholder="e.g. NODE-0042">
         <label class="fl mt8">Reason</label><textarea class="inp" id="req-detail" style="width:100%;min-height:60px" placeholder="Why is this action required?"></textarea>
+        ${needsStepup ? `<label class="fl mt8" style="color:#fbbf24">STEP-UP AUTHENTICATION — required for HIGH/CRITICAL (§16)</label>
+        <div class="row"><input class="inp" id="req-stepup" placeholder="6-digit TOTP code" style="flex:1"><button class="btn sm" id="req-fillcode">USE MY CURRENT CODE</button></div>` : ''}
         <div class="dim mt8">Risk: <b>${esc(def.risk)}</b> · Reversible: <b>${def.reversible ? 'YES' : 'NO'}</b> · Approval: <b>${esc(def.approval)}</b></div>
       </div>`),
       actions: [
         { label: 'Cancel', cls: 'ghost' },
         { label: 'REQUEST', cls: 'primary', onClick: async () => {
           try {
-            const r = await API.post('/api/sentinel/actions/request', { action: b.dataset.req, target: $('#req-target', m.body).value.trim() || 'UNSPECIFIED', detail: $('#req-detail', m.body).value.trim() });
+            const r = await API.post('/api/sentinel/actions/request', { action: b.dataset.req, target: $('#req-target', m.body).value.trim() || 'UNSPECIFIED', detail: $('#req-detail', m.body).value.trim(), stepupCode: $('#req-stepup', m.body)?.value.trim() || '' });
             toast(r.requiresApproval ? 'Approval requested' : 'Action executed', `${r.action.actionLabel} — audited.`);
             m.close(); renderActionsTab(main);
           } catch (e) { toast('Request failed', e.message, 'critical'); }
         } },
       ],
     });
+    const rf = $('#req-fillcode', m.body);
+    if (rf) rf.onclick = async () => {
+      try {
+        const setup = await API.get('/api/auth/mfa/setup');
+        if (setup && setup.currentCode) { $('#req-stepup', m.body).value = setup.currentCode; toast('Step-up code filled', 'Using your current TOTP code (demo).'); }
+      } catch (e) { toast('Could not fetch code', e.message, 'critical'); }
+    };
   });
   const pending = d.rows.filter(a => ['REQUESTED', 'PENDING_DUAL'].includes(a.status));
   if (pending.length) {
@@ -1200,6 +1230,8 @@ async function renderBreakGlass(main) {
         body: () => el(`<div class="small" style="line-height:1.8">
           <label class="fl">Reason (mandatory, min 10 characters)</label>
           <textarea class="inp" id="bg-reason" style="width:100%;min-height:64px" placeholder="e.g. Evidence store availability incident SEC-2027-000414 requires immediate recovery access"></textarea>
+          <label class="fl" style="color:#fbbf24">STRONG (STEP-UP) AUTHENTICATION — required for emergency access (§48)</label>
+          <div class="row"><input class="inp" id="bg-code" placeholder="6-digit TOTP code" style="flex:1"><button class="btn sm" id="bg-fillcode">USE MY CURRENT CODE</button></div>
           <label class="fl mt8">Incident ID</label>
           <input class="inp" id="bg-inc" style="width:100%" placeholder="SEC-2027-…">
           <label class="fl mt8">Time limit (minutes, max 120)</label>
@@ -1212,13 +1244,21 @@ async function renderBreakGlass(main) {
             const reason = $('#bg-reason', m.body).value.trim();
             if (reason.length < 10) { toast('Reason required', 'A clear reason (min 10 chars) is mandatory.', 'critical'); return; }
             try {
-              const r = await API.post('/api/sentinel/breakglass/open', { reason, incidentId: $('#bg-inc', m.body).value.trim(), minutes: parseInt($('#bg-min', m.body).value, 10) || 30 });
+              const r = await API.post('/api/sentinel/breakglass/open', { reason, incidentId: $('#bg-inc', m.body).value.trim(), minutes: parseInt($('#bg-min', m.body).value, 10) || 30, stepupCode: $('#bg-code', m.body).value.trim() });
+              if (r.error) { toast('Access denied', r.message || r.error, 'critical'); return; }
               toast('Break-glass opened', `Emergency privileged session expires in ${r.session.minutes}:00 — elevated monitoring active.`, 'critical');
               m.close(); renderBreakGlass(main);
             } catch (e) { toast('Open failed', e.message, 'critical'); }
           } },
         ],
       });
+      const bf = $('#bg-fillcode', m.body);
+      if (bf) bf.onclick = async () => {
+        try {
+          const setup = await API.get('/api/auth/mfa/setup');
+          if (setup && setup.currentCode) { $('#bg-code', m.body).value = setup.currentCode; toast('Step-up code filled', 'Using your current TOTP code (demo).'); }
+        } catch (e) { toast('Could not fetch code', e.message, 'critical'); }
+      };
     };
     main.appendChild(openBtn);
   }
