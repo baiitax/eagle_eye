@@ -40,6 +40,17 @@ async function login(u, p) {
     const out = execFileSync(process.execPath, ['-e', snippet], { cwd: ROOT, env: { VERCEL: '1', PATH: process.env.PATH } }).toString();
     ok('P0-01: serverless boot fails closed without SESSION_SECRET', /ERR:SESSION_SECRET_REQUIRED/.test(out), out.trim().slice(0, 80));
   }
+  // P0-01 UX regression: the Vercel handler shows a guided HTML setup page to
+  // browsers and clean JSON to API clients (never a raw unhelpful page).
+  // Spawns scripts/aux_boot_failure_ux_check.js (a committed helper — no runtime
+  // string-generated snippets).
+  {
+    const { execFileSync } = require('child_process');
+    const helper = path.join(ROOT, 'scripts', 'aux_boot_failure_ux_check.js');
+    const out2 = execFileSync(process.execPath, [helper], { cwd: ROOT, env: { VERCEL: '1', PATH: process.env.PATH } }).toString();
+    ok('P0-01 UX: browser gets guided HTML setup page', /HTML:true/.test(out2), out2.trim().slice(0, 120));
+    ok('P0-01 UX: API client gets clean JSON boot failure', /JSON:true/.test(out2), out2.trim().slice(0, 120));
+  }
 
   // Vercel has no persisted state file — remove any local snapshot so the harness
   // exercises the true cold-start path (deterministic seed from SESSION_SECRET).

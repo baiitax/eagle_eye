@@ -88,7 +88,9 @@ Post-audit hardening delivered in this release:
 - **P0-01 fixed:** the HMAC session key is no longer hardcoded. Production/serverless boots
   **fail closed** (`SESSION_SECRET_REQUIRED`) until `SESSION_SECRET` is set; local demos use a
   random per-boot secret. **Set `SESSION_SECRET` in Vercel → Settings → Environment Variables**
-  (`openssl rand -hex 32`), otherwise the deployment intentionally refuses to start.
+  (`openssl rand -hex 32`), otherwise the deployment intentionally refuses to start — browsers
+  now see a **guided setup page** with exact steps (API clients get clean JSON), and a
+  redeploy is required after adding variables.
 - **P1-01 fixed:** geographic scope on the LG/Senatorial evidence APIs is now
   authenticated-user-first (query-parameter overrides restricted to centrally-scoped roles).
 - **CI gates:** `npm run lint` (static analysis incl. route-dup detection) ·
