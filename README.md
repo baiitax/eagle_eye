@@ -18,6 +18,44 @@ node server/server.js       # → http://localhost:3000  (zero runtime dependenc
 
 First boot seeds everything and loads the **Collation Phase (27 Feb 2027, 16:20 WAT)** scenario at 30× speed. Switch scenarios from the central header dropdown, **Admin → Simulation Control**, or `POST /api/admin/simulation {action:'reset'}` for a full reset.
 
+## M3 Database (2026-09-01)
+
+The platform now has a **real PostgreSQL layer** — the audit's DB-01 finding is closed:
+
+- **`server/lib/db.js`** — provider layer: when `DATABASE_URL` is set, Postgres becomes the
+  durable source of truth; the in-memory store stays the runtime working set, mirrored on
+  every save (3s cadence). Without `DATABASE_URL` the JSON-store fallback still works.
+- **Versioned migrations** (`server/migrations/*.sql` — 21 tables: users, roles, sessions,
+  revoked_sessions, append-only audit_log, app_config, rate_policy, geography, submissions,
+  evidence, incidents, sos, streams, notifications, state_snapshots) applied automatically
+  at boot and via `npm run migrate -- status|up|down|reset`.
+- **Cold-start continuity on Vercel**: identity (password changes, TOTP, status),
+  session revocations, rate-limit policies, configuration, the append-only audit and a
+  throttled full-state snapshot all survive instance recycling — verified by a real
+  kill-and-reboot test against local PostgreSQL (`scripts/db-test.js`, 25 checks).
+- **Retention enforced (PRIV-01)**: `retentionDays` is now honoured — hourly in long-running
+  mode, at boot on serverless, and manually from the admin **Database** tab.
+- **Backup & restore (DR-01)**: logical SQL export (`GET /api/admin/db/export` +
+  Database tab button) → restore into a fresh database via `scripts/db-import.js` —
+  round-trip verified (row counts match).
+- **Admin → Database panel**: storage mode, connection state, table row counts, snapshot
+  age, retention run, force snapshot, export SQL — plus `/api/health` now reports the
+  database mode and where the state was loaded from.
+
+**Vercel setup:** create a Postgres database (Neon or Vercel Postgres — free tiers work),
+then in Vercel → Settings → Environment Variables add
+`DATABASE_URL=postgres://...?sslmode=require`. Redeploy; the boot log shows
+`[db] postgres connected — 21 tables`. Until then the deployment keeps working on the
+JSON fallback (with the Database tab showing guidance).
+
+**Local setup (optional):**
+```bash
+sudo apt-get install -y postgresql && sudo service postgresql start
+sudo -u postgres psql -c "CREATE ROLE ev2027 LOGIN PASSWORD 'ev2027pass';"
+sudo -u postgres psql -c "CREATE DATABASE ev2027 OWNER ev2027;"
+DATABASE_URL=postgres://ev2027:ev2027pass@127.0.0.1:5432/ev2027 node server/server.js
+```
+
 ## M2 Identity & Access (2026-09-01)
 
 Post-audit M2 delivered — real authentication security across the platform:

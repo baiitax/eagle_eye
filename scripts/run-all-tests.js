@@ -9,7 +9,7 @@ const BASE = 'http://localhost:3000';
 
 const SUITES = [
   'apitest', 'security-test', 'mfa-test', 'e2e', 'agent-test', 'lg-test', 'senatorial-test',
-  'central20-test', 'irev-test', 'public-test', 'login-test', 'sentinel-test', 'serverless-check',
+  'central20-test', 'irev-test', 'public-test', 'login-test', 'sentinel-test', 'serverless-check', 'db-test',
 ];
 
 async function healthy() {

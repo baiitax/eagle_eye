@@ -6,6 +6,7 @@ const { uuid, watEpoch } = require('./util');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
+const db = require('./db');
 
 function freshState() {
   return {
@@ -80,11 +81,13 @@ function load() {
       const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
       if (raw && raw.meta && raw.meta.version === 7) {
         state = raw;
+        state.meta.loadedFrom = state.meta.loadedFrom || 'file';
         return { loaded: true };
       }
     }
   } catch (e) { /* fall through to fresh */ }
   state = freshState();
+  state.meta.loadedFrom = 'fresh';
   return { loaded: false };
 }
 
@@ -100,6 +103,7 @@ function save() {
     fs.writeFileSync(tmp, JSON.stringify(state));
     fs.renameSync(tmp, STATE_FILE);
   } catch (e) { console.error('state save failed', e.message); }
+  db.scheduleMirror(state); // M3: durable mirror to Postgres (no-op without DATABASE_URL)
 }
 function reset() {
   state = freshState();
@@ -111,14 +115,16 @@ const set = (mutator) => { mutator(state); scheduleSave(); };
 
 // ---- audit helper ----
 function audit(user, action, objectType, objectId, detail = '', req = null) {
-  state.audit.unshift({
+  const entry = {
     id: uuid(), userId: user ? user.id : null, username: user ? user.username : 'system',
     action, objectType, objectId, detail,
     ip: req ? (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() : '127.0.0.1',
     device: req ? (req.headers['user-agent'] || '').slice(0, 80) : 'server',
     createdAt: state.meta.simNow || Date.now(),
-  });
+  };
+  state.audit.unshift(entry);
   if (state.audit.length > 5000) state.audit.length = 5000;
+  db.appendAudit(entry); // M3: append-only audit_log in Postgres
   scheduleSave();
 }
 function systemEvent(type, payload) {

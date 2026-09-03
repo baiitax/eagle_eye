@@ -19,6 +19,7 @@
     { id: 'audit', label: 'Audit', ico: '◉' },
     { id: 'health', label: 'System Health', ico: '📊' },
     { id: 'sim', label: 'Simulation Control', ico: '🎬' },
+    { id: 'database', label: 'Database', ico: '🗄', section: 'System' },
     { id: 'integrations', label: 'Integrations', ico: '🔌' },
   ];
   const shell = initShell({ title: 'Admin', nav: NAV, active: tab, me, sim: ov.sim, portalTag: 'ADMINISTRATION', onNav: setTab });
@@ -418,7 +419,62 @@
     <div class="panel mt12"><div class="ph"><span class="t">WEBHOOKS & EVENT BUS</span></div><div class="pb small muted">
       The prototype ships with SSE realtime events. Production webhook targets (response teams, partner observers) register at <code>/api/integrations/webhooks</code> with signed payloads and replay support.</div></div>`));
   }
+  async function rDatabase() {
+    const main = shell.main;
+    main.appendChild(el('<div class="dim">Loading database status…</div>'));
+    try {
+      const st = await API.get('/api/admin/db/status');
+      const modeCls = st.mode === 'postgres' ? 'ok' : 'warn';
+      const connCls = st.connected ? 'ok' : 'bad';
+      main.innerHTML = '';
+      main.appendChild(el(`<div class="panel"><div class="ph"><span class="t">DATABASE — M3 PERSISTENCE LAYER</span><span class="sp dim small">Postgres is the durable source of truth when DATABASE_URL is set</span></div>
+        <div class="pb">
+          <div class="stat-tiles" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat-tile ${modeCls}"><div class="v" style="font-size:15px">${esc(st.mode.toUpperCase())}</div><div class="l">STORAGE MODE</div></div>
+            <div class="stat-tile ${connCls}"><div class="v" style="font-size:15px">${st.connected ? 'CONNECTED' : 'NOT CONNECTED'}</div><div class="l">POSTGRES CONNECTION</div></div>
+            <div class="stat-tile"><div class="v">${st.tables.length}</div><div class="l">TABLES</div></div>
+            <div class="stat-tile ${st.stateLoadedFrom === 'database' ? 'ok' : ''}"><div class="v" style="font-size:13px">${esc(st.stateLoadedFrom || '—')}</div><div class="l">STATE LOADED FROM</div></div>
+            <div class="stat-tile"><div class="v">${st.retentionDays}</div><div class="l">RETENTION (DAYS)</div></div>
+            <div class="stat-tile"><div class="v">${fmtN(st.auditMemoryRows)}</div><div class="l">AUDIT ROWS (MEMORY)</div></div>
+            <div class="stat-tile ${st.latestSnapshotAgeMs != null && st.latestSnapshotAgeMs < 5 * 60000 ? 'ok' : ''}"><div class="v" style="font-size:12px">${st.latestSnapshotAgeMs != null ? Math.round(st.latestSnapshotAgeMs / 1000) + 's ago' : '—'}</div><div class="l">LATEST SNAPSHOT</div></div>
+            <div class="stat-tile"><div class="v">${st.pendingAuditQueue}</div><div class="l">PENDING AUDIT FLUSH</div></div>
+          </div>
+          ${st.error ? `<div class="alert-strip"><div class="a">⚠ ${esc(st.error)}</div></div>` : ''}
+          ${st.mode !== 'postgres' ? `<div class="alert-strip"><div class="a amber">No DATABASE_URL configured — running on the JSON store (demo fallback). On Vercel set DATABASE_URL (Neon/Vercel Postgres) so identity, sessions, audit and state survive cold starts.</div></div>` : ''}
+          <div class="row mt8">
+            ${st.connected ? `<button class="btn sm" id="dbsnap">📸 FORCE SNAPSHOT</button><button class="btn sm" id="dbret">♻ RUN RETENTION</button><a class="btn sm" href="/api/admin/db/export" target="_blank">⬇ EXPORT SQL BACKUP</a>` : ''}
+          </div>
+        </div></div>`));
+      if (st.tables.length) {
+        const rows = Object.entries(st.counts || {}).filter(([k]) => st.tables.includes(k));
+        const tab = dataTable({
+          cols: [
+            { key: 'table', label: 'TABLE' },
+            { key: 'rows', label: 'ROWS' },
+          ],
+          rows: rows.map(([k, v]) => ({ table: k, rows: v == null ? '—' : fmtN(v) })),
+          sortable: false, emptyText: 'No tables',
+        });
+        tab.setTitle('TABLE ROW COUNTS (Postgres)');
+        main.appendChild(tab.el);
+      }
+      $('#dbsnap', main)?.addEventListener('click', async () => {
+        const r = await API.post('/api/admin/db/snapshot', {});
+        toast('Snapshot taken', 'id ' + r.snapshotId + ' — state is now recoverable from Postgres.');
+        rDatabase();
+      });
+      $('#dbret', main)?.addEventListener('click', () => {
+        confirmBox('Run retention', 'Prune records older than the configured retention (' + st.retentionDays + ' days) from memory and from the Postgres audit log.', async () => {
+          const r = await API.post('/api/admin/db/retention', { days: st.retentionDays });
+          toast('Retention complete', r.pruned + ' record(s) pruned — audited.');
+          rDatabase();
+        }, 'RUN RETENTION');
+      });
+    } catch (e) {
+      shell.main.innerHTML = `<div class="panel"><div class="pb" style="color:#f87171">Database status unavailable: ${esc(e.message)}</div></div>`;
+    }
+  }
 
-  const RENDERS = { dashboard: rDashboard, users: rUsers, roles: rRoles, agents: rAgents, devices: rDevices, elections: rElections, geography: rGeography, candidates: rCandidates, config: rConfig, security: rSecurity, audit: rAudit, health: rHealth, sim: rSim, integrations: rIntegrations };
+  const RENDERS = { dashboard: rDashboard, users: rUsers, roles: rRoles, agents: rAgents, devices: rDevices, elections: rElections, geography: rGeography, candidates: rCandidates, config: rConfig, security: rSecurity, audit: rAudit, health: rHealth, sim: rSim, integrations: rIntegrations, database: rDatabase };
   render();
 })();

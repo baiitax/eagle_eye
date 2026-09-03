@@ -16,6 +16,7 @@ const copilot = require('./lib/copilot');
 const irev = require('./lib/irev');
 const sentinel = require('./lib/sentinel');
 const limiter = require('./lib/ratelimit');
+const db = require('./lib/db');
 const fmtWat = util.fmtWat;
 
 const PORT = process.env.PORT || 3000;
@@ -262,7 +263,11 @@ function route(method, pattern, handler, opts = {}) {
 // --- public ---
 route('GET', /^\/api\/health$/, (req, res) => {
   const h = S().systemHealth;
-  sendJson(res, 200, { status: 'ok', time: Date.now(), simNow: S().meta.simNow, services: h, serverless: IS_SERVERLESS });
+  sendJson(res, 200, {
+    status: 'ok', time: Date.now(), simNow: S().meta.simNow, services: h, serverless: IS_SERVERLESS,
+    database: { mode: db.statusInfo().mode, connected: db.statusInfo().connected, error: db.statusInfo().error },
+    stateLoadedFrom: S().meta.loadedFrom || 'unknown',
+  });
 });
 
 route('GET', /^\/api\/public\/statistics$/, (req, res) => {
@@ -1213,6 +1218,48 @@ route('POST', /^\/api\/admin\/users\/([^/]+)\/revoke-sessions$/, (req, res, body
   set(() => {});
   sendJson(res, 200, { ok: true, revoked: n });
 });
+// ---- M3 DATABASE ADMIN ----
+route('GET', /^\/api\/admin\/db\/status$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const st = S();
+  const info = db.statusInfo();
+  sendJson(res, 200, {
+    ...info,
+    stateLoadedFrom: st.meta.loadedFrom || 'unknown',
+    stateLoadedFromAt: st.meta.loadedFromAt || null,
+    retentionDays: st.config.retentionDays || 730,
+    auditMemoryRows: (st.audit || []).length,
+    latestSnapshotAgeMs: info.lastSnapshotAt ? Date.now() - info.lastSnapshotAt : null,
+  });
+});
+route('POST', /^\/api\/admin\/db\/snapshot$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  db.snapshotNow(S()).then(id => {
+    audit(u, 'DB_SNAPSHOT_TAKEN', 'database', 'state_snapshots', 'id=' + id, req);
+    sendJson(res, 200, { ok: true, snapshotId: id });
+  }).catch(e => sendJson(res, 500, { error: 'SNAPSHOT_FAILED', message: String(e.message) }));
+});
+route('POST', /^\/api\/admin\/db\/retention$/, (req, res, body) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  const days = Number.isFinite(+body.days) ? Math.max(0, Math.min(3650, parseInt(body.days, 10))) : (S().config.retentionDays || 730);
+  db.runRetention(S(), days).then(pruned => {
+    audit(u, 'DB_RETENTION_RUN', 'database', null, `${days} days — pruned ${pruned} row(s)`, req);
+    set(() => {});
+    sendJson(res, 200, { ok: true, days, pruned });
+  }).catch(e => sendJson(res, 500, { error: 'RETENTION_FAILED', message: String(e.message) }));
+});
+route('GET', /^\/api\/admin\/db\/export$/, (req, res) => {
+  const u = auth.currentUser(req);
+  if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
+  audit(u, 'DB_EXPORT', 'database', null, 'logical SQL export requested', req);
+  db.exportSql().then(sql => {
+    sendBuffer(res, 200, Buffer.from(sql), 'application/sql; charset=utf-8', { 'Content-Disposition': 'attachment; filename="eagle-eye-backup.sql"' });
+  }).catch(e => sendJson(res, 500, { error: 'EXPORT_FAILED', message: String(e.message) }));
+});
+
 // central rate-limit policies (AUTH-03): view + adjust, fully audited
 route('POST', /^\/api\/admin\/ratelimit\/reset$/, (req, res) => {
   const u = auth.currentUser(req);
@@ -1268,7 +1315,7 @@ route('PATCH', /^\/api\/admin\/config$/, (req, res, body) => {
   const u = auth.currentUser(req);
   if (!u || !auth.can(u, 'admin.config')) return u ? sendJson(res, 403, { error: 'FORBIDDEN' }) : sendJson(res, 401, { error: 'UNAUTHENTICATED' });
   const st = S();
-  const allowed = ['orgName', 'platformName', 'tagline', 'stateName', 'announcement', 'demoMode', 'pollOpen', 'pollClose'];
+  const allowed = ['orgName', 'platformName', 'tagline', 'stateName', 'announcement', 'demoMode', 'pollOpen', 'pollClose', 'retentionDays', 'electionDayWat'];
   for (const k of allowed) if (body[k] !== undefined) st.config[k] = body[k];
   audit(u, 'CONFIG_UPDATED', 'config', null, Object.keys(body).filter(k => allowed.includes(k)).join(','), req);
   set(() => {});
@@ -3624,6 +3671,12 @@ function boot() {
   sentinel.ensureInitialized();
   const secBoot = sentinel.cfg();
   console.log('[boot] SENTINEL SOC ready:', secBoot.nodes.length, 'nodes,', secBoot.apis.length, 'APIs,', secBoot.incidents.filter(i => i.status !== 'CLOSED').length, 'open cases,', secBoot.vulns.filter(v => v.severity === 'CRITICAL' && v.status === 'OPEN').length, 'CRITICAL vulns, threat level', secBoot.threatLevel);
+  // M3: hydrate identity/session/audit state from Postgres (cold-start continuity)
+  db.ensureHydrated(S()).then(() => {
+    const st = S();
+    const keepDays = st.config && st.config.retentionDays ? st.config.retentionDays : 730;
+    if (keepDays > 0) db.runRetention(st, keepDays).catch(() => {});
+  }).catch(() => {});
 }
 
 // ---------------- long-running mode (local / Render / Railway / Fly) ----------------
@@ -3633,6 +3686,11 @@ if (require.main === module) {
   const simTimer = setInterval(() => {
     try { sim.tick(1000); irev.tick(S().meta.simNow); sentinel.tick(S().meta.simNow); } catch (e) { console.error('tick error', e); }
   }, 1000);
+  // M3: retention policy runs hourly in long-running mode (PRIV-01)
+  setInterval(() => {
+    const keepDays = S().config && S().config.retentionDays ? S().config.retentionDays : 730;
+    if (keepDays > 0) db.runRetention(S(), keepDays).catch(() => {});
+  }, 3600 * 1000);
   process.on('SIGTERM', () => { clearInterval(simTimer); store.save(); process.exit(0); });
   process.on('SIGINT', () => { clearInterval(simTimer); store.save(); process.exit(0); });
   server.listen(PORT, '0.0.0.0', () => {

@@ -155,7 +155,16 @@ admin + SENTINEL adjustable, cooldown lockouts) · SENTINEL identity/privileged-
 now REAL (live telemetry, real sessions, TOTP step-up for HIGH/CRITICAL actions & break-glass).
 Suites: mfa-test (63) + real-browser review (9) + full runner 13/13.
 
-## 11. Public domain home & secure sign-in
+## 11. M3 Database
+
+Postgres layer (`server/lib/db.js` + `server/migrations/*.sql`, 21 tables, auto-migrate at
+boot): users/sessions/revoked/audit/config/rate-policy/geography/ops/snapshots. Cold-start
+continuity on Vercel (password changes + revocations + audit survive instance recycling —
+db-test 25/25 with real PostgreSQL, kill-and-reboot verified). Retention enforced
+(PRIV-01), SQL export/import backup & restore (DR-01), Admin → Database panel, health
+reports database mode. No `DATABASE_URL` → JSON fallback unchanged (14/14 suites).
+
+## 12. Public domain home & secure sign-in
 
 `/` — public election domain: live KPI strip, Result Observatory (senatorial districts + governorship monitored vote share, verified submissions only), incident monitor, IReV watch, Kano map, DEMO/unofficial disclaimers, SIGN IN (header) + bottom login dock, role-dashboard banner for signed-in users, authorized-portal grid.
 

@@ -13,6 +13,8 @@
 //  - runtime state writes are skipped gracefully (read-only filesystem)
 'use strict';
 const { handleRequest, boot } = require('../server/server.js');
+const store = require('../server/lib/store');
+const db = require('../server/lib/db');
 
 let bootPromise = null;
 function ensureBoot() {
@@ -23,6 +25,9 @@ function ensureBoot() {
 module.exports = async function handler(req, res) {
   try {
     await ensureBoot();
+    // M3: wait for the database layer (migrations + hydration) before serving,
+    // so sessions, revocations and passwords survive instance cold starts.
+    await db.ensureHydrated(store.S());
   } catch (e) {
     const msg = String(e && e.message || e || 'Boot failure');
     const body = JSON.stringify({ error: 'BOOT_FAILURE', message: msg });

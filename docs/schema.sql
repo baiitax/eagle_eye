@@ -1,3 +1,9 @@
+-- EAGLE EYE / EYES OF VICTORY — database schema
+-- NOTE (M3, 2026-09): the LIVE schema is now maintained as versioned migrations in
+--   server/migrations/*.sql  (001_identity.sql, 002_operations.sql)
+-- applied automatically at boot when DATABASE_URL is set, or via:
+--   npm run migrate -- status|up|down|reset
+-- This file remains the design reference for the production data model.
 -- ============================================================================
 -- NDC E-SITUATION ROOM 2027 — PRODUCTION DATABASE SCHEMA (PostgreSQL + PostGIS)
 -- The prototype ships an in-memory store with identical entity shapes; this DDL

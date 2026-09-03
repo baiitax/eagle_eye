@@ -88,8 +88,25 @@ findings → resolution → verification per milestone.
 modal + fill, reset flow, credential restore) · full runner 13/13 suites (~700 checks) · lint +
 secret-scan clean.
 
+## M3 COMPLETE — DATABASE (2026-09-01)
+
+**Delivered (verified against REAL PostgreSQL):**
+- `server/lib/db.js` provider layer (Postgres = durable source of truth when `DATABASE_URL`
+  set; in-memory store = runtime working set, mirrored every save at 3s cadence; JSON fallback
+  unchanged) + `pg` as the single runtime dependency.
+- 21-table versioned migrations (`server/migrations/`, auto-applied at boot, `npm run migrate`).
+- Cold-start continuity: users (password/TOTP/status), revoked_sessions, rate policies,
+  app_config, append-only audit_log and a throttled full-state snapshot hydrate at boot —
+  proven by `scripts/db-test.js` (25 checks: password change and session revocation SURVIVE a
+  kill-and-reboot with the state file deleted; `stateLoadedFrom: database`).
+- Retention enforced (PRIV-01) with the platform clock; audit_log prune included.
+- Backup & restore (DR-01): SQL export endpoint + `scripts/db-import.js`; round-trip verified
+  into a fresh database (row counts match). `scripts/migrate.js` (status/up/down/reset).
+- Admin → Database panel (mode/connection/row counts/snapshot/retention/export);
+  `/api/health` reports `database.mode` + `stateLoadedFrom`.
+- Full regression: 14/14 suites in no-DB fallback mode; db-test 25/25 against Postgres.
+
 ## Next milestones (awaiting authorization)
 
-- **M3 Database:** PostgreSQL/PostGIS per `docs/schema.sql`, retention enforcement (DB-01..04, PRIV-01).
 - **M4 Evidence · M5 Field/Offline · M6 Verification · M7 Command · M8 SENTINEL · M9 Analytics ·
   M10 Public Transparency · M11 Security & Resilience · M12 Production** (see M0 report §41).
